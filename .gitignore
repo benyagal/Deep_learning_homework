@@ -1,0 +1,22 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Generált könyvtárak
+/data/
+/models/
+/log/
+
+# Környezeti fájlok
+.env
+.venv
+venv/
+ENV/
+
+# IDE/Editor specifikus fájlok
+.vscode/
+.idea/
+*.swp
+*.swo
