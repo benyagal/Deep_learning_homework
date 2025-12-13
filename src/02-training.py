@@ -11,8 +11,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
 
-from . import config
-from .model import CoralModel, create_data_loader
+import config
+from model import CoralModel, create_data_loader
 from transformers import AutoTokenizer
 
 def coral_loss_simple(probs, labels):
@@ -211,7 +211,7 @@ def run_training(df_processed, logger):
 if __name__ == '__main__':
     """Standalone futtatás: CSV betöltése és tanítás indítása."""
     import pandas as pd
-    from .utils import get_logger
+    from utils import get_logger
     
     logger = get_logger(__name__)
     logger.info("02-training.py: Standalone mód indítása")

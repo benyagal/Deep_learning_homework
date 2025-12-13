@@ -7,7 +7,7 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from transformers import AutoTokenizer, AutoModel
 
-from . import config
+import config
 
 class LegalDataset(Dataset):
     """PyTorch adatkészlet a jogi szövegekhez."""
