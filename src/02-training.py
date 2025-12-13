@@ -171,7 +171,7 @@ def run_training(df_processed, logger):
             if mae_f < best_mae_f:
                 best_mae_f = mae_f
                 epochs_no_improve = 0
-                torch.save(model_f.state_dict(), f'{config.MODEL_DIR}/coral_fold{fold}_best.bin')
+                torch.save(model_f.state_dict(), f'{config.MODELS_DIR}/coral_fold{fold}_best.bin')
                 logger.info(f"Új legjobb modell mentve (MAE: {best_mae_f:.4f})")
             else:
                 epochs_no_improve += 1
@@ -184,7 +184,7 @@ def run_training(df_processed, logger):
 
         # Legjobb modell betöltése és tévesztési mátrix készítése
         best_model_fold = CoralModel(config.MODEL_NAME, num_classes=config.NUM_CLASSES, extra_feat_dim=len(config.FEATURE_COLS))
-        best_model_fold.load_state_dict(torch.load(f'{config.MODEL_DIR}/coral_fold{fold}_best.bin'))
+        best_model_fold.load_state_dict(torch.load(f'{config.MODELS_DIR}/coral_fold{fold}_best.bin'))
         best_model_fold.to(config.DEVICE)
         best_model_fold.eval()
         
