@@ -9,6 +9,8 @@ from pathlib import Path
 import spacy
 from tqdm import tqdm
 import numpy as np
+import urllib.request
+import urllib.error
 
 # Jogi terminusok és rövidítések a configból (vagy ide is helyezhetők)
 LEGAL_TERMS = [
@@ -33,14 +35,73 @@ except OSError:
         nlp.add_pipe('sentencizer')
 
 
+def download_from_google_drive(file_id: str, destination: str, logger) -> bool:
+    """
+    Letölt egy fájlt Google Drive-ról a megadott file ID alapján.
+    
+    Args:
+        file_id: Google Drive file ID (a linkből)
+        destination: Hova mentse a fájlt
+        logger: Logger objektum
+    
+    Returns:
+        True ha sikeres, False ha nem
+    """
+    try:
+        url = f"https://drive.google.com/uc?export=download&id={file_id}"
+        logger.info(f"Letoltes Google Drive-rol: {file_id}")
+        
+        # Ellenőrzés: szükséges-e confirmation token (nagy fájlok esetén)
+        req = urllib.request.Request(url)
+        response = urllib.request.urlopen(req)
+        
+        # Először próbáljuk meg közvetlenül letölteni
+        content = response.read()
+        
+        # Ha a válasz HTML és tartalmazza a "virus scan warning"-et, akkor confirmation kell
+        if b'<!DOCTYPE html>' in content[:100]:
+            # Keressük meg a confirmation tokent
+            logger.warning("Nagy fajl - confirmation token szukseges")
+            # Egyszerűsített: próbáljuk confirm=t paraméterrel
+            url_with_confirm = f"{url}&confirm=t"
+            response = urllib.request.urlopen(url_with_confirm)
+            content = response.read()
+        
+        # Mentés
+        Path(destination).parent.mkdir(parents=True, exist_ok=True)
+        with open(destination, 'wb') as f:
+            f.write(content)
+        
+        logger.info(f"Sikeres letoltes: {destination}")
+        return True
+        
+    except urllib.error.URLError as e:
+        logger.error(f"HIBA a letoltes soran: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Varatlan hiba a letoltes soran: {e}")
+        return False
+
 def load_annotation_json(path: str, logger) -> pd.DataFrame:
     """
     Betölti a címkézési adatokat egy JSON fájlból és DataFrame-mé alakítja.
+    Ha a fájl nem létezik, megpróbálja letölteni Google Drive-ról.
     """
     p = Path(path)
+    
+    # Ha nem létezik, próbáljuk meg letölteni
     if not p.exists():
-        logger.error(f"Adatfájl nem található: {path}")
-        return pd.DataFrame(columns=['task_id','paragraph_text','label_int','label_text'])
+        logger.warning(f"Adatfajl nem talalhato: {path}")
+        logger.info("Megprobalom letolteni Google Drive-rol...")
+        
+        # Google Drive file ID a megosztott linkből
+        GDRIVE_FILE_ID = "19UlAsuzprmhTl_I5Z_58d7AAIw3eJX_l"
+        
+        if download_from_google_drive(GDRIVE_FILE_ID, path, logger):
+            logger.info("Sikeres letoltes! Folytatom a feldolgozast...")
+        else:
+            logger.error(f"Nem sikerult letolteni a fajlt. Adatfajl nem talalhato: {path}")
+            return pd.DataFrame(columns=['task_id','paragraph_text','label_int','label_text'])
     raw = p.read_text(encoding='utf-8').strip()
     if not raw:
         logger.warning("A JSON fájl üres.")

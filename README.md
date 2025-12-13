@@ -53,9 +53,12 @@ dl_project_legal_text_decoder/
 
 ## Data Preparation
 
-The training requires the `granit_bank_cimkezes.json` annotation file, which is not included in the repository.
+The training requires the `granit_bank_cimkezes.json` annotation file.
 
-1. Download the file from the course SharePoint
+**Automatic Download**: The pipeline automatically downloads the annotation file from Google Drive if it's not present in the data directory. No manual download needed!
+
+**Manual Setup** (alternative):
+1. Download from: https://drive.google.com/file/d/19UlAsuzprmhTl_I5Z_58d7AAIw3eJX_l/view
 2. Create a `data` directory outside the project folder (e.g., `C:\Users\YourUser\Documents\dl_project_data`)
 3. Place the JSON file in the `data` directory
 
@@ -77,18 +80,16 @@ docker run --rm -v /path/to/your/local/data:/app/data legal-text-decoder > log/r
 
 **Windows (PowerShell) example:**
 ```powershell
-# Create log directory if it doesn't exist
-if (-not (Test-Path -Path log)) { New-Item -ItemType Directory -Path log }
-
-# Run Docker container
+# Run Docker container (log and data directories are auto-created)
 docker run --rm -v "C:\Users\YourUser\Documents\dl_project_data:/app/data" legal-text-decoder > log/run.log 2>&1
 ```
 
 **Linux/Mac example:**
 ```bash
-mkdir -p log
 docker run --rm -v /home/user/dl_project_data:/app/data legal-text-decoder > log/run.log 2>&1
 ```
+
+**Note**: The `log/`, `models/`, and `data/` directories are automatically created if they don't exist - no manual setup required!
 
 The complete execution log will be saved to `log/run.log`.
 

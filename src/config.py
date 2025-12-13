@@ -3,6 +3,7 @@ Központi konfigurációs fájl a projekthez.
 Itt tároljuk a hiperparamétereket, fájlútvonalakat és egyéb beállításokat.
 """
 import torch
+from pathlib import Path
 
 # -- Általános beállítások
 SEED = 42
@@ -13,6 +14,11 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 DATA_DIR = "/app/data"
 MODELS_DIR = "/app/models"
 LOG_DIR = "/app/log"
+
+# Automatikus mappa létrehozás (ha nem létezik)
+Path(DATA_DIR).mkdir(parents=True, exist_ok=True)
+Path(MODELS_DIR).mkdir(parents=True, exist_ok=True)
+Path(LOG_DIR).mkdir(parents=True, exist_ok=True)
 ANNOTATION_PATH = f"{DATA_DIR}/granit_bank_cimkezes.json"
 PROCESSED_DATA_PATH = f"{DATA_DIR}/processed_data.csv"
 INFERENCE_HOLDOUT_PATH = f"{DATA_DIR}/inference_holdout.csv"
