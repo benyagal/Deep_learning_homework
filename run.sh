@@ -1,13 +1,25 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# run.sh - run the full pipeline scripts in order
+# This script is used by the Docker image and local testing to execute the
+# main pipeline stages in sequence for demonstration purposes.
 
-# Ez a szkript futtatja a teljes tanítási folyamatot.
-# 1. Telepíti a függőségeket (ha szükséges, bár a Docker ezt kezeli)
-# 2. Futtatja a fő Python szkriptet a tanításhoz.
+set -euo pipefail
 
-echo "Starting the training process..."
+echo "[run.sh] Starting full pipeline run at $(date --iso-8601=seconds)"
 
-# A fő szkript futtatása
-# A `main.py` fogja vezérelni az adat-előfeldolgozást, tanítást és kiértékelést.
-python3 src/main.py
+# Futtatjuk a szkripteket sorban
+echo "[run.sh] === Running 01-data-preprocessing.py ==="
+python src/01-data-preprocessing.py
 
-echo "Training process finished."
+echo "[run.sh] === Running 02-training.py ==="
+python src/02-training.py
+
+echo "[run.sh] === Running 03-evaluation.py ==="
+python src/03-evaluation.py
+
+echo "[run.sh] === Running 04-inference.py on holdout (unseen) data ==="
+# Futtatjuk az inference szkriptet a holdout adatokon (unseen data)
+python src/04-inference.py
+
+echo "[run.sh] Pipeline finished at $(date --iso-8601=seconds)"
+echo "[run.sh] All stages completed successfully."

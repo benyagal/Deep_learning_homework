@@ -1,98 +1,133 @@
-# ÁSZF Érthetőség Predikciós Modell
+# Legal Text Readability Prediction
 
-Ez a projekt egy NLP modellt valósít meg, amely 1-től 5-ig terjedő skálán becsüli meg jogi szövegrészletek (jelen esetben a Gránit Bank ÁSZF-jének egy részlete) érthetőségét.
+This project implements a deep learning model that predicts the readability of Hungarian legal text paragraphs on a 1-5 scale (1=very difficult, 5=very easy).
 
-## Projekt Struktúra
+## Project Information
+- **Topic**: Legal Text Decoder
+- **Student Name**: Gál Benjamin
+- **Target +1 Grade**: No
 
-A projekt a verziókezelőben nem tartalmazza az adatokat, a tanított modelleket és a logokat. Ezeket a futtatás során kell létrehozni és a konténerbe csatolni.
+## Solution Description
+
+The model predicts readability levels of Hungarian legal documents (Gránit Bank Terms & Conditions excerpts) using an ordinal regression approach. The solution combines:
+
+1. **Feature Engineering**: 23 handcrafted features extracted via spaCy Hungarian NLP pipeline
+   - Readability metrics (Flesch, Gunning Fog, SMOG)
+   - Lexical complexity (TTR, word length, complex word ratio)
+   - Legal domain features (legal terms, abbreviations frequency)
+   - Syntactic depth (dependency tree statistics)
+
+2. **Baseline Model**: LogisticAT ordinal regression (mord library) using only the 23 features
+
+3. **Deep Learning Model**: Hungarian BERT (`SZTAKI-HLT/hubert-base-cc`) with CORAL head
+   - Hybrid architecture: Transformer embeddings + handcrafted features
+   - CORAL (Cumulative Ordinal Regression) ensures ordinal consistency
+   - 5-fold cross-validation with early stopping
+   - Metrics: MAE (Mean Absolute Error), QWK (Quadratic Weighted Kappa)
+
+The pipeline runs fully automated in Docker, logging all training details to stdout.
+
+## Project Structure
+
+The repository does not include data files, trained models, or logs - these are generated during runtime and mounted via Docker volumes.
 
 ```
 dl_project_legal_text_decoder/
-├── notebooks/
-│   └── notebook_best.ipynb         # Eredeti kísérletező notebook
 ├── src/
-│   ├── __init__.py
-│   ├── config.py                   # Konfigurációs fájl
-│   ├── data_preprocessing.py       # Adatbetöltő és jellemző-kinyerő szkriptek
-│   ├── model.py                    # PyTorch modell és adatkészlet definíciók
-│   ├── train.py                    # Tanítási és kiértékelési logika
-│   └── main.py                     # Fő belépési pont
-├── .gitignore                      # Verziókezelésből kizárt fájlok
-├── Dockerfile                      # Docker image definíció
-├── requirements.txt                # Python függőségek
-└── run.sh                          # Futtató szkript
+│   ├── 01-data-preprocessing.py    # Data loading, EDA, feature extraction
+│   ├── 02-training.py               # Model training with 5-fold CV
+│   ├── 03-evaluation.py             # Test set evaluation
+│   ├── 04-inference.py              # CLI prediction tool
+│   ├── config.py                    # Configuration and hyperparameters
+│   ├── model.py                     # PyTorch model definitions
+│   └── utils.py                     # Logger utilities
+├── notebooks/
+│   └── notebook_best.ipynb          # Experimental notebook
+├── log/                             # Training logs (gitignored, .gitkeep tracked)
+├── models/                          # Saved models (gitignored, .gitkeep tracked)
+├── Dockerfile                       # Docker image definition
+├── requirements.txt                 # Python dependencies (pinned versions)
+├── run.sh                           # Orchestration script (01→02→03→04)
+└── README.md                        # This documentation
 ```
 
-## Projekt Részletek
+## Data Preparation
 
-### Projekt Információk
-- **Téma**: Legal Text Decoder
-- **Név**: [Ide írd a neved]
-- **Cél a +1 jegy**: [Igen/Nem]
+The training requires the `granit_bank_cimkezes.json` annotation file, which is not included in the repository.
 
-### Megoldás Leírása
-A projekt célja egy mélytanuló modell létrehozása, amely képes megbecsülni magyar nyelvű jogi szövegrészletek érthetőségét egy 1-től 5-ig terjedő skálán. A megoldás egy `SZTAKI-HLT/hubert-base-cc` transzformer modellt használ alapul, amelyet egy ordinális klasszifikációra specializált **CORAL (Cumulative Ordinal Ranking and Regression)** kimeneti réteggel egészítünk ki. A modell a nyers szöveg mellett 23, a szöveg komplexitását, olvashatóságát és jogi jellegét leíró, kézzel készített jellemzőt is felhasznál a jobb teljesítmény érdekében. A tanítás 5-szörös keresztvalidációval történik, a kiértékelés fő metrikái a Mean Absolute Error (MAE) és a Quadratic Weighted Kappa (QWK). A teljes folyamat Docker konténerben fut a reprodukálhatóság biztosítása érdekében.
+1. Download the file from the course SharePoint
+2. Create a `data` directory outside the project folder (e.g., `C:\Users\YourUser\Documents\dl_project_data`)
+3. Place the JSON file in the `data` directory
 
-### Extra Pont Indoklása
-[Ha a "+1 jegy" cél "Igen", itt indokold meg, hogy a munkád mely része (pl. innovatív modell architektúra, kiterjedt kísérletezés, kiemelkedő eredmény) érdemel extra pontot.]
-
-### Adat-előkészítés
-A modell tanításához a `granit_bank_cimkezes.json` fájl szükséges. Mivel ez nem része a repozitóriumnak, a futtatás előtt manuálisan kell beszerezni.
-
-1.  **Hozzon létre egy `data` könyvtárat** a számítógépén egy tetszőleges, de megjegyezhető helyen (pl. `C:\Users\YourUser\Documents\dl_project_data`).
-2.  **Töltse le a `granit_bank_cimkezes.json` fájlt** a következő SharePoint linkről:
-    [BME VIK - Project Work - Adatfájl](https://bmeedu-my.sharepoint.com/shared?listurl=https%3A%2F%2Fbmeedu%2Dmy%2Esharepoint%2Ecom%2Fpersonal%2Fgyires%2Dtoth%5Fbalint%5Fvik%5Fbme%5Fhu%2FDocuments&id=%2Fpersonal%2Fgyires%2Dtoth%5Fbalint%5Fvik%5Fbme%5Fhu%2FDocuments%2FDokumentumok%2FVITMMA19%2F2025%2Fproject%2Dwork%2Flegaltextdecoder%2FQG1L1V&shareLink=1%2C1%2C1&ga=1)
-3.  **Helyezze a letöltött fájlt** az imént létrehozott `data` könyvtárba.
-
-A `src/data_preprocessing.py` szkript ezt a JSON fájlt olvassa be, kinyeri belőle a szövegeket és a címkéket, majd a `spaCy` és egyéni függvények segítségével legenerálja a szükséges 23 numerikus jellemzőt. Az adatok ezután készen állnak a modell által feldolgozható formátumra.
-
-## Docker Instrukciók
-
-A projekt konténerizált. Az alábbi lépésekkel építhető és futtatható.
+## Docker Instructions
 
 ### Build
-Futtassa a következő parancsot a repozitórium gyökérkönyvtárában a Docker image felépítéséhez:
+Build the Docker image from the repository root:
 
 ```bash
 docker build -t legal-text-decoder .
 ```
 
-### Futtatás
-A futtatáshoz a `-v` kapcsolóval csatolni kell a helyi adatokat tartalmazó könyvtárat a konténer `/app/data` mappájához. A logok elmentéséhez irányítsa át a kimenetet egy fájlba.
-
-**Fontos:** Cserélje le a `/path/to/your/local/data` részt a saját, "Adat-előkészítés" lépésben létrehozott `data` könyvtárának abszolút elérési útjára.
+### Run
+Mount your local data directory and redirect output to log file. Replace `/path/to/your/local/data` with your actual data directory path:
 
 ```bash
 docker run --rm -v /path/to/your/local/data:/app/data legal-text-decoder > log/run.log 2>&1
 ```
 
-Példa Windows alatt (PowerShell):
+**Windows (PowerShell) example:**
 ```powershell
-# Hozd létre a log mappát, ha még nem létezik
+# Create log directory if it doesn't exist
 if (-not (Test-Path -Path log)) { New-Item -ItemType Directory -Path log }
+
+# Run Docker container
 docker run --rm -v "C:\Users\YourUser\Documents\dl_project_data:/app/data" legal-text-decoder > log/run.log 2>&1
 ```
 
-GPU használata esetén adja hozzá a `--gpus all` kapcsolót:
+**Linux/Mac example:**
 ```bash
-docker run --rm --gpus all -v /path/to/your/local/data:/app/data legal-text-decoder > log/run.log 2>&1
+mkdir -p log
+docker run --rm -v /home/user/dl_project_data:/app/data legal-text-decoder > log/run.log 2>&1
 ```
-A parancs a teljes futás kimenetét a host gépen, a projekt gyökerében létrehozott `log/run.log` fájlba menti.
 
-## Fájlstruktúra és Funkciók
+The complete execution log will be saved to `log/run.log`.
 
-- **`src/`**: A forráskódok.
-  - **`main.py`**: A fő belépési pont. Elindítja az adatfeldolgozást, a baseline modell futtatását és a transzformer modell tanítását.
-  - **`data_preprocessing.py`**: Betölti a JSON adatokat és kinyeri a numerikus jellemzőket.
-  - **`model.py`**: Definiálja a `LegalDataset` és `CoralModel` osztályokat.
-  - **`train.py`**: A teljes 5-szörös keresztvalidációs tanítási ciklust, kiértékelést és modellmentést vezérli.
-  - **`config.py`**: Globális konfigurációs változók (hiperparaméterek, útvonalak).
-  - **`utils.py`**: Segédfüggvények, jelenleg a központi logger beállításáért felel.
-- **`notebooks/`**: Kísérletező Jupyter notebook.
-- **`log/`**: A futtatási logok és a generált képek (tévesztési mátrixok) helye.
-- **`models/`**: A tanítás során mentett modellfájlok helye.
-- **`Dockerfile`**: A Docker image leírása.
-- **`requirements.txt`**: Python függőségek listája.
-- **`run.sh`**: A konténeren belüli futtatást vezérlő shell szkript.
-- **`README.md`**: Ez a dokumentáció.
+## Pipeline Stages
 
+The `run.sh` script executes the following stages sequentially:
+
+1. **01-data-preprocessing.py**: 
+   - Loads JSON annotations (~1000 examples)
+   - **Randomly selects 2 examples as holdout set (unseen data)**
+   - Saves holdout examples to `data/inference_holdout.csv`
+   - Performs exploratory data analysis (EDA) on training data
+   - Extracts 23 linguistic features using spaCy
+   - Saves processed training data to `data/processed_data.csv`
+
+2. **02-training.py**:
+   - Trains CORAL model with 5-fold cross-validation **on training data only**
+   - Logs model architecture, training metrics (loss, MAE, QWK)
+   - Saves best model per fold
+   - Generates confusion matrices
+
+3. **03-evaluation.py**:
+   - Evaluates baseline and transformer models on test fold
+   - Reports final MAE and QWK scores
+
+4. **04-inference.py**:
+   - **Runs predictions on 2 holdout examples (truly unseen data)**
+   - These examples were excluded from training/validation
+   - Compares predictions with ground truth labels
+   - Reports MAE and accuracy on holdout set
+
+## Logging Requirements
+
+All required logging components are implemented and output to `log/run.log`:
+
+1. **Configuration**: Model name, hyperparameters (batch size, learning rate, epochs, etc.)
+2. **Data Analysis**: Record counts, label distribution, text length statistics, class balance, outlier detection
+3. **Model Architecture**: Parameter counts (backbone + head), layer details
+4. **Training Metrics**: Per-epoch train/validation loss, MAE, QWK
+5. **Validation Results**: Best MAE per fold, confusion matrices
+6. **Final Evaluation**: Test set performance for baseline and transformer models
+7. **Inference Example**: Model loading and prediction demonstration

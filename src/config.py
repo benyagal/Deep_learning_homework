@@ -11,12 +11,19 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # -- Adatfájlok útvonalai
 # A konténeren belüli útvonalak. Az adatokat a `docker run -v` paranccsal kell csatolni.
 DATA_DIR = "/app/data"
-MODEL_DIR = "/app/models"
+MODELS_DIR = "/app/models"
 LOG_DIR = "/app/log"
-ANNOTATION_FILE = f"{DATA_DIR}/granit_bank_cimkezes.json"
+ANNOTATION_PATH = f"{DATA_DIR}/granit_bank_cimkezes.json"
+PROCESSED_DATA_PATH = f"{DATA_DIR}/processed_data.csv"
+INFERENCE_HOLDOUT_PATH = f"{DATA_DIR}/inference_holdout.csv"
+
+# -- Adatkezelés
+TEXT_COL = 'paragraph_text'
+TARGET_COL = 'label_int'
 
 # -- Modell és Tokenizer
 MODEL_NAME = 'SZTAKI-HLT/hubert-base-cc'
+BASELINE_MODEL_NAME = "log_at_baseline"
 MAX_LEN = 256
 NUM_CLASSES = 5
 

@@ -6,8 +6,13 @@ __pycache__/
 
 # Generált könyvtárak
 /data/
-/models/
-/log/
+
+# A log és models mappák tartalmát ignoráljuk, de a mappákat magukat
+# a .gitkeep fájl segítségével megtartjuk a verziókezelésben.
+log/*
+!log/.gitkeep
+models/*
+!models/.gitkeep
 
 # Környezeti fájlok
 .env

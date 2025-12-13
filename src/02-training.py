@@ -65,14 +65,39 @@ def run_training(df_processed, logger):
     tokenizer = AutoTokenizer.from_pretrained(config.MODEL_NAME)
     
     # --- Modell architektúra naplózása ---
-    logger.info("--- Modell Architektúra ---")
+    logger.info("\n" + "=" * 80)
+    logger.info("MODELL ARCHITEKTÚRA")
+    logger.info("=" * 80)
     model_for_summary = CoralModel(config.MODEL_NAME, num_classes=config.NUM_CLASSES, extra_feat_dim=len(config.FEATURE_COLS))
-    total_params = sum(p.numel() for p in model_for_summary.parameters())
-    trainable_params = sum(p.numel() for p in model_for_summary.parameters() if p.requires_grad)
-    logger.info(f"Modell: {config.MODEL_NAME} + CoralHead")
-    logger.info(f"Összes paraméter: {total_params:,}")
-    logger.info(f"Tanítható paraméter: {trainable_params:,}")
-    logger.info("--------------------------")
+    
+    # Backbone paraméterek
+    backbone_params = sum(p.numel() for p in model_for_summary.base.parameters())
+    backbone_trainable = sum(p.numel() for p in model_for_summary.base.parameters() if p.requires_grad)
+    
+    # Head paraméterek
+    head_params = sum(p.numel() for p in model_for_summary.head.parameters())
+    head_trainable = sum(p.numel() for p in model_for_summary.head.parameters() if p.requires_grad)
+    
+    # Teljes paraméterek
+    total_params = backbone_params + head_params
+    trainable_params = backbone_trainable + head_trainable
+    
+    logger.info(f"\nTransformer Backbone: {config.MODEL_NAME}")
+    logger.info(f"  - Backbone paraméterek: {backbone_params:,} (tanítható: {backbone_trainable:,})")
+    logger.info(f"  - Hidden size: 768")
+    logger.info(f"  - Layers: 12 (transformer encoder)")
+    
+    logger.info(f"\nCORAL Head:")
+    logger.info(f"  - Input: [CLS] (768) + Extra Features ({len(config.FEATURE_COLS)})")
+    logger.info(f"  - MLP hidden layer: 256 (LayerNorm + GELU + Dropout)")
+    logger.info(f"  - Output: {config.NUM_CLASSES - 1} küszöb (sigmoid)")
+    logger.info(f"  - Head paraméterek: {head_params:,} (mind tanítható)")
+    
+    logger.info(f"\nÖsszesen:")
+    logger.info(f"  - Összes paraméter: {total_params:,}")
+    logger.info(f"  - Tanítható paraméter: {trainable_params:,}")
+    logger.info(f"  - Nem-tanítható: {total_params - trainable_params:,}")
+    logger.info("=" * 80 + "\n")
 
     skf = StratifiedKFold(n_splits=config.KFOLDS, shuffle=True, random_state=config.SEED)
     labels_all = df_processed['label_int'].values
@@ -182,3 +207,25 @@ def run_training(df_processed, logger):
     logger.info(f'Fold MAE-k: {fold_results}')
     logger.info(f'Átlagos MAE a {config.KFOLDS} foldon: {mean_mae:.4f}')
     logger.info("--------------------------")
+
+if __name__ == '__main__':
+    """Standalone futtatás: CSV betöltése és tanítás indítása."""
+    import pandas as pd
+    from .utils import get_logger
+    
+    logger = get_logger(__name__)
+    logger.info("02-training.py: Standalone mód indítása")
+    
+    # Adatok betöltése
+    logger.info(f"Feldolgozott adatok betöltése: {config.PROCESSED_DATA_PATH}")
+    try:
+        df_processed = pd.read_csv(config.PROCESSED_DATA_PATH)
+        logger.info(f"Betöltve {len(df_processed)} sor, {len(df_processed.columns)} oszlop")
+        logger.info(f"Oszlopok: {list(df_processed.columns)}")
+    except FileNotFoundError:
+        logger.error(f"HIBA: A feldolgozott adatfájl nem található: {config.PROCESSED_DATA_PATH}")
+        logger.error("Kérjük, először futtasd a 01-data-preprocessing.py szkriptet!")
+        exit(1)
+    
+    # Tanítás futtatása
+    run_training(df_processed, logger)
