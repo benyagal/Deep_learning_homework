@@ -33,47 +33,47 @@ def run_inference_on_holdout():
     tanítás során SOHA nem látott.
     """
     logger.info("\n" + "="*80)
-    logger.info("INFERENCE HOLDOUT ADATOKON (Új, Nem Látott Példák)")
+    logger.info("INFERENCE HOLDOUT ADATOKON (Uj, Nem Latott Peldak)")
     logger.info("="*80)
     
     # 1. Holdout adatok betöltése
     holdout_path = config.INFERENCE_HOLDOUT_PATH
     
     if not Path(holdout_path).exists():
-        logger.error(f"HIBA: A holdout fájl nem található: {holdout_path}")
-        logger.error("Kérjük, először futtasd a 01-data-preprocessing.py szkriptet!")
+        logger.error(f"HIBA: A holdout fajl nem talalhato: {holdout_path}")
+        logger.error("Kerlek, eloszor futtasd a 01-data-preprocessing.py szkriptet!")
         return
     
     try:
         holdout_df = pd.read_csv(holdout_path)
-        logger.info(f"Holdout adatok betöltve: {len(holdout_df)} példa")
+        logger.info(f"Holdout adatok betoltve: {len(holdout_df)} pelda")
     except Exception as e:
-        logger.error(f"HIBA a holdout adatok betöltése közben: {e}")
+        logger.error(f"HIBA a holdout adatok betoltese kozben: {e}")
         return
     
-    # Ellenőrzés: szükséges oszlopok megléte
-    required_cols = ['text', 'label_int'] + config.FEATURE_COLS
+    # Ellenorzes: szukseges oszlopok meglete
+    required_cols = ['paragraph_text', 'label_int'] + config.FEATURE_COLS
     missing_cols = [col for col in required_cols if col not in holdout_df.columns]
     if missing_cols:
-        logger.error(f"HIBA: Hiányzó oszlopok a holdout adatokban: {missing_cols}")
+        logger.error(f"HIBA: Hianyzoo oszlopok a holdout adatokban: {missing_cols}")
         return
     
     # 2. Modell betöltése (használjuk az első fold legjobb modelljét)
     model_path = f"{config.MODELS_DIR}/coral_fold1_best.bin"
     
     if not Path(model_path).exists():
-        logger.error(f"HIBA: A modell fájl nem található: {model_path}")
-        logger.error("Kérjük, először futtasd a 02-training.py szkriptet!")
+        logger.error(f"HIBA: A modell fajl nem talalhato: {model_path}")
+        logger.error("Kerlek, eloszor futtasd a 02-training.py szkriptet!")
         return
     
-    logger.info(f"Modell betöltése: {model_path}")
+    logger.info(f"Modell betoltese: {model_path}")
     
     model = CoralModel(config.MODEL_NAME, num_classes=config.NUM_CLASSES, extra_feat_dim=len(config.FEATURE_COLS))
     
     try:
         model.load_state_dict(torch.load(model_path, map_location=config.DEVICE))
     except Exception as e:
-        logger.error(f"HIBA a modell betöltése közben: {e}")
+        logger.error(f"HIBA a modell betoltese kozben: {e}")
         return
     
     model.to(config.DEVICE)
@@ -88,10 +88,10 @@ def run_inference_on_holdout():
             c: (train_df[c].mean(), train_df[c].std() if train_df[c].std() > 0 else 1.0)
             for c in config.FEATURE_COLS
         }
-        logger.info("Feature normalizálási statisztikák betöltve a training setből")
+        logger.info("Feature normalizalasi statisztikak betoltve a training setbol")
     except Exception as e:
-        logger.error(f"HIBA a training adatok betöltése közben: {e}")
-        logger.warning("Feature normalizálás nélkül folytatom (nem ajánlott)")
+        logger.error(f"HIBA a training adatok betoltese kozben: {e}")
+        logger.warning("Feature normalizalas nelkul folytatom (nem ajanlott)")
         feature_stats = {c: (0.0, 1.0) for c in config.FEATURE_COLS}
     
     # 4. DataLoader létrehozása
@@ -128,26 +128,26 @@ def run_inference_on_holdout():
             all_labels.append(true_label)
             all_preds.append(pred_label)
             
-            text_snippet = holdout_df.iloc[idx]['text'][:100]
-            logger.info(f"\nPélda #{idx+1}:")
-            logger.info(f"  Szöveg: {text_snippet}...")
-            logger.info(f"  Valós címke: {true_label}")
-            logger.info(f"  Prediktált címke: {pred_label}")
-            logger.info(f"  Egyezés: {'✓ IGEN' if true_label == pred_label else '✗ NEM'}")
+            text_snippet = holdout_df.iloc[idx]['paragraph_text'][:100]
+            logger.info(f"\nPelda #{idx+1}:")
+            logger.info(f"  Szoveg: {text_snippet}...")
+            logger.info(f"  Valos cimke: {true_label}")
+            logger.info(f"  Prediktalt cimke: {pred_label}")
+            logger.info(f"  Egyezes: {'IGEN' if true_label == pred_label else 'NEM'}")
     
-    # 6. Összesített metrikák
+    # 6. Osszesitett metrikak
     logger.info("\n" + "="*80)
-    logger.info("ÖSSZESÍTETT EREDMÉNYEK (Holdout Set)")
+    logger.info("OSSZESITETT EREDMENYEK (Holdout Set)")
     logger.info("="*80)
     
     mae = mean_absolute_error(all_labels, all_preds)
     qwk = cohen_kappa_score(all_labels, all_preds, weights='quadratic')
     accuracy = sum(1 for t, p in zip(all_labels, all_preds) if t == p) / len(all_labels)
     
-    logger.info(f"Holdout set mérete: {len(holdout_df)} példa")
+    logger.info(f"Holdout set merete: {len(holdout_df)} pelda")
     logger.info(f"MAE (Mean Absolute Error): {mae:.4f}")
     logger.info(f"QWK (Quadratic Weighted Kappa): {qwk:.4f}")
-    logger.info(f"Pontosság: {accuracy:.2%}")
+    logger.info(f"Pontossag: {accuracy:.2%}")
     logger.info("="*80)
     
     logger.info("\n--- Inference Befejezve ---")

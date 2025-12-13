@@ -128,8 +128,8 @@ def run_training(df_processed, logger):
         for epoch in range(config.EPOCHS):
             model_f.train()
             train_losses = []
-            # A tqdm a loggerrel nem működik jól, ezért a standard print marad
-            for batch in tqdm(train_loader_f, desc=f"Fold {fold} Epoch {epoch+1} Train"):
+            # Nincs tqdm - tiszta, tömör log
+            for batch in train_loader_f:
                 ids = batch['input_ids'].to(config.DEVICE)
                 mask = batch['attention_mask'].to(config.DEVICE)
                 feats = batch['features'].to(config.DEVICE)
@@ -172,7 +172,7 @@ def run_training(df_processed, logger):
                 best_mae_f = mae_f
                 epochs_no_improve = 0
                 torch.save(model_f.state_dict(), f'{config.MODELS_DIR}/coral_fold{fold}_best.bin')
-                logger.info(f"Új legjobb modell mentve (MAE: {best_mae_f:.4f})")
+                logger.info(f"Uj legjobb modell mentve (MAE: {best_mae_f:.4f})")
             else:
                 epochs_no_improve += 1
                 if epochs_no_improve >= config.PATIENCE:
