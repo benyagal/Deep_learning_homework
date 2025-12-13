@@ -342,6 +342,15 @@ def get_processed_data(annotation_path: str, output_path: str, logger) -> None:
     df_feat_train = pd.DataFrame(feature_rows_train)
     df_processed_train = pd.concat([df_training.reset_index(drop=True), df_feat_train], axis=1)
     
+    # --- Fold assignment hozzáadása (K-Fold CV-hez) ---
+    from sklearn.model_selection import StratifiedKFold
+    logger.info("\n--- K-Fold assignment (5-fold stratified split) ---")
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    df_processed_train['fold'] = -1
+    for fold_idx, (train_idx, val_idx) in enumerate(skf.split(df_processed_train, df_processed_train['label_int'])):
+        df_processed_train.loc[val_idx, 'fold'] = fold_idx
+    logger.info(f"Fold eloszlás:\n{df_processed_train['fold'].value_counts().sort_index()}")
+    
     # --- Jellemzőkinyerés (HOLDOUT adat) ---
     logger.info("\n--- Jellemzőkinyerés (Holdout/Inference adat) ---")
     feature_rows_holdout = [extract_features(t) for t in tqdm(df_holdout['paragraph_text'], desc='Holdout Feature Extraction')]
