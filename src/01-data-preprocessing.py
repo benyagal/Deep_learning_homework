@@ -25,11 +25,11 @@ VOWELS = "aáeéiíoóöőuúüű"
 
 # spaCy modell betöltése
 try:
-    # A Docker image-ben a modell a /app/hu_core_news_md útvonalon lesz
+    # A Docker image-ben a modell a /app/hu_core_news_md utvonalon lesz
     nlp = spacy.load("hu_core_news_md")
-    print("✓ spaCy modell (hu_core_news_md) betöltve.")
+    print("OK spaCy modell (hu_core_news_md) betoltve.")
 except OSError:
-    print("⚠ hu_core_news_md nem található. Fallback: blank magyar modell.")
+    print("! hu_core_news_md nem talalhato. Fallback: blank magyar modell.")
     nlp = spacy.blank('hu')
     if 'sentencizer' not in nlp.pipe_names:
         nlp.add_pipe('sentencizer')
@@ -60,7 +60,7 @@ def download_from_google_drive(file_id: str, destination: str, logger) -> bool:
         
         # Ha a válasz HTML és tartalmazza a "virus scan warning"-et, akkor confirmation kell
         if b'<!DOCTYPE html>' in content[:100]:
-            # Keressük meg a confirmation tokent
+            # Keressuk meg a confirmation tokent
             logger.warning("Nagy fajl - confirmation token szukseges")
             # Egyszerűsített: próbáljuk confirm=t paraméterrel
             url_with_confirm = f"{url}&confirm=t"
@@ -89,7 +89,7 @@ def load_annotation_json(path: str, logger) -> pd.DataFrame:
     """
     p = Path(path)
     
-    # Ha nem létezik, próbáljuk meg letölteni
+    # Ha nem letezik, probaljuk meg letolteni
     if not p.exists():
         logger.warning(f"Adatfajl nem talalhato: {path}")
         logger.info("Megprobalom letolteni Google Drive-rol...")
@@ -104,7 +104,7 @@ def load_annotation_json(path: str, logger) -> pd.DataFrame:
             return pd.DataFrame(columns=['task_id','paragraph_text','label_int','label_text'])
     raw = p.read_text(encoding='utf-8').strip()
     if not raw:
-        logger.warning("A JSON fájl üres.")
+        logger.warning("A JSON fajl ures.")
         return pd.DataFrame(columns=['task_id','paragraph_text','label_int','label_text'])
     if not raw.startswith('['):
         raw = f'[{raw}]'
@@ -132,7 +132,7 @@ def load_annotation_json(path: str, logger) -> pd.DataFrame:
             'label_int': int(m.group(1)),
             'label_text': choice
         })
-    logger.info(f"Sikeresen betöltve {len(rows)} címkézett adatpont.")
+    logger.info(f"Sikeresen betoltve {len(rows)} cimkezett adatpont.")
     return pd.DataFrame(rows)
 
 def count_syllables_hu(word):
@@ -211,102 +211,96 @@ def analyze_data(df: pd.DataFrame, logger) -> None:
     logger.info("ADATELEMZÉS (Exploratory Data Analysis)")
     logger.info("=" * 80)
     
-    # 1. Alapstatisztikák
-    logger.info(f"\n1. ALAPSTATISZTIKÁK")
-    logger.info(f"   Teljes rekordszám: {len(df)}")
-    logger.info(f"   Oszlopok száma: {len(df.columns)}")
+    # 1. Alapstatisztikak
+    logger.info(f"\n1. ALAPSTATISZTIKAK")
+    logger.info(f"   Teljes rekordszam: {len(df)}")
+    logger.info(f"   Oszlopok szama: {len(df.columns)}")
     logger.info(f"   Oszlopok: {list(df.columns)}")
     
-    # Hiányzó értékek ellenőrzése
+    # Hianyzó ertekek ellenorzese
     missing = df.isnull().sum()
     total_missing = missing.sum()
     if total_missing > 0:
-        logger.warning(f"   ⚠ Hiányzó értékek összesen: {total_missing}")
+        logger.warning(f"   ! Hianyzó ertekek osszesen: {total_missing}")
         for col, count in missing[missing > 0].items():
             logger.warning(f"      - {col}: {count} ({count/len(df)*100:.1f}%)")
     else:
-        logger.info(f"   ✓ Nincs hiányzó érték az adatokban")
+        logger.info(f"   OK Nincs hianyzó ertek az adatokban")
     
-    # 2. Címke eloszlás részletesen
-    logger.info(f"\n2. CÍMKE ELOSZLÁS")
+    # 2. Cimke eloszlas reszletesen
+    logger.info(f"\n2. CIMKE ELOSZLAS")
     label_counts = df['label_int'].value_counts().sort_index()
-    logger.info(f"   Érthetőségi szintek (1=nagyon nehéz, 5=nagyon könnyű):")
+    logger.info(f"   Erthetosegi szintek (1=nagyon nehez, 5=nagyon konnyu):")
     for label, count in label_counts.items():
         percentage = count/len(df)*100
-        bar = '█' * int(percentage / 2)  # Visual bar chart
+        bar = '#' * int(percentage / 2)  # Visual bar chart
         logger.info(f"   Szint {label}: {count:3d} ({percentage:5.1f}%) {bar}")
     
     # Osztály-egyensúly ellenőrzése
     min_class = label_counts.min()
     max_class = label_counts.max()
     imbalance_ratio = max_class / min_class
-    logger.info(f"\n   Osztály-egyensúly elemzés:")
-    logger.info(f"   - Legkisebb osztály: {min_class} példa")
-    logger.info(f"   - Legnagyobb osztály: {max_class} példa")
-    logger.info(f"   - Egyensúlytalansági arány: {imbalance_ratio:.2f}:1")
+    logger.info(f"\n   Osztaly-egyensuly elemzes:")
+    logger.info(f"   - Legkisebb osztaly: {min_class} pelda")
+    logger.info(f"   - Legnagyobb osztaly: {max_class} pelda")
+    logger.info(f"   - Egyensulytalansagi arany: {imbalance_ratio:.2f}:1")
     if imbalance_ratio > 3:
-        logger.warning(f"   ⚠ Jelentős osztály-egyensúlytalanság ({imbalance_ratio:.1f}x)")
+        logger.warning(f"   ! Jelentes osztaly-egyensulytalansag ({imbalance_ratio:.1f}x)")
     else:
-        logger.info(f"   ✓ Elfogadható osztály-egyensúly")
+        logger.info(f"   OK Elfogadhato osztaly-egyensuly")
     
-    # 3. Szöveg hossz statisztikák
-    logger.info(f"\n3. SZÖVEG HOSSZ STATISZTIKÁK")
+    # 3. Szoveg hossz statisztikak
+    logger.info(f"\n3. SZOVEG HOSSZ STATISZTIKAK")
     df['_text_length'] = df['paragraph_text'].str.len()
     df['_word_count'] = df['paragraph_text'].str.split().str.len()
     
     logger.info(f"   Karakter hossz:")
     logger.info(f"   - Minimum: {df['_text_length'].min()} karakter")
     logger.info(f"   - Maximum: {df['_text_length'].max()} karakter")
-    logger.info(f"   - Átlag: {df['_text_length'].mean():.1f} karakter")
-    logger.info(f"   - Medián: {df['_text_length'].median():.1f} karakter")
+    logger.info(f"   - Atlag: {df['_text_length'].mean():.1f} karakter")
+    logger.info(f"   - Median: {df['_text_length'].median():.1f} karakter")
     logger.info(f"   - Std: {df['_text_length'].std():.1f}")
     
-    logger.info(f"\n   Szószám:")
-    logger.info(f"   - Minimum: {df['_word_count'].min()} szó")
-    logger.info(f"   - Maximum: {df['_word_count'].max()} szó")
-    logger.info(f"   - Átlag: {df['_word_count'].mean():.1f} szó")
-    logger.info(f"   - Medián: {df['_word_count'].median():.1f} szó")
+    logger.info(f"\n   Szoszam:")
+    logger.info(f"   - Minimum: {df['_word_count'].min()} szo")
+    logger.info(f"   - Maximum: {df['_word_count'].max()} szo")
+    logger.info(f"   - Atlag: {df['_word_count'].mean():.1f} szo")
+    logger.info(f"   - Median: {df['_word_count'].median():.1f} szo")
     logger.info(f"   - Std: {df['_word_count'].std():.1f}")
     
-    # 4. Címke-hossz korreláció
-    logger.info(f"\n4. CÍMKE-SZÖVEGHOSSZ KORRELÁCIÓ")
+    # 4. Cimke-hossz korrelacio
+    logger.info(f"\n4. CIMKE-SZOVEGHOSSZ KORRELACIO")
     avg_length_by_label = df.groupby('label_int')['_word_count'].agg(['mean', 'std'])
-    logger.info(f"   Átlagos szószám nehézségi szintenként:")
+    logger.info(f"   Atlagos szoszam nehezsegi szintenkent:")
     for label in sorted(df['label_int'].unique()):
         mean_words = avg_length_by_label.loc[label, 'mean']
         std_words = avg_length_by_label.loc[label, 'std']
-        logger.info(f"   Szint {label}: {mean_words:6.1f} ± {std_words:5.1f} szó")
+        logger.info(f"   Szint {label}: {mean_words:6.1f} +/- {std_words:5.1f} szo")
     
-    # Pearson korreláció számítás
+    # Pearson korrelacio szamitas
     correlation = df['label_int'].corr(df['_word_count'])
-    logger.info(f"\n   Pearson korreláció (címke ~ szószám): {correlation:.3f}")
+    logger.info(f"\n   Pearson korrelacio (cimke ~ szoszam): {correlation:.3f}")
     if abs(correlation) < 0.1:
-        logger.info(f"   → Gyenge korreláció: hossz önmagában nem meghatározó")
+        logger.info(f"   -> Gyenge korrelacio: hossz onmagaban nem meghatarozo")
     elif abs(correlation) < 0.3:
-        logger.info(f"   → Közepes korreláció: hossz részben releváns")
+        logger.info(f"   -> Kozepes korrelacio: hossz reszben relevans")
     else:
-        logger.info(f"   → Erős korreláció: hossz jelentős tényező")
+        logger.info(f"   -> Eros korrelacio: hossz jelentes tenyezo")
     
-    # 5. Jogi kifejezések gyakorisága
-    logger.info(f"\n5. JOGI DOMAIN JELLEMZŐK")
+    # 5. Jogi kifejezesek gyakorisaga
+    logger.info(f"\n5. JOGI DOMAIN JELLEMZOK")
     df['_has_legal_term'] = df['paragraph_text'].str.lower().str.contains('|'.join(LEGAL_TERMS), regex=True)
     df['_has_legal_abbr'] = df['paragraph_text'].str.lower().str.contains('|'.join(LEGAL_ABBREVIATIONS), regex=True)
     
     legal_term_count = df['_has_legal_term'].sum()
     legal_abbr_count = df['_has_legal_abbr'].sum()
     
-    logger.info(f"   Jogi kifejezést tartalmazó bekezdések: {legal_term_count} ({legal_term_count/len(df)*100:.1f}%)")
-    logger.info(f"   Jogi rövidítést tartalmazó bekezdések: {legal_abbr_count} ({legal_abbr_count/len(df)*100:.1f}%)")
+    logger.info(f"   Jogi kifejezest tartalmazo bekezdesek: {legal_term_count} ({legal_term_count/len(df)*100:.1f}%)")
+    logger.info(f"   Jogi roviditest tartalmazo bekezdesek: {legal_abbr_count} ({legal_abbr_count/len(df)*100:.1f}%)")
     
-    # Jogi kifejezések címkénként
-    legal_by_label = df.groupby('label_int')['_has_legal_term'].mean() * 100
-    logger.info(f"\n   Jogi kifejezések aránya nehézségi szintenként:")
-    for label in sorted(df['label_int'].unique()):
-        pct = legal_by_label.loc[label]
-        logger.info(f"   Szint {label}: {pct:5.1f}%")
     
     # 6. Outlier detekció
-    logger.info(f"\n6. OUTLIER DETEKCIÓ (Szöveghossz alapján)")
+    logger.info(f"\n6. OUTLIER DETEKCIÓ (Szoveghossz alapjan)")
     Q1 = df['_word_count'].quantile(0.25)
     Q3 = df['_word_count'].quantile(0.75)
     IQR = Q3 - Q1
@@ -314,39 +308,39 @@ def analyze_data(df: pd.DataFrame, logger) -> None:
     upper_bound = Q3 + 1.5 * IQR
     
     outliers = df[(df['_word_count'] < lower_bound) | (df['_word_count'] > upper_bound)]
-    logger.info(f"   IQR módszer (1.5 × IQR):")
-    logger.info(f"   - Q1 (25%): {Q1:.1f} szó")
-    logger.info(f"   - Q3 (75%): {Q3:.1f} szó")
+    logger.info(f"   IQR modszer (1.5 x IQR):")
+    logger.info(f"   - Q1 (25%): {Q1:.1f} szo")
+    logger.info(f"   - Q3 (75%): {Q3:.1f} szo")
     logger.info(f"   - IQR: {IQR:.1f}")
-    logger.info(f"   - Alsó korlát: {lower_bound:.1f} szó")
-    logger.info(f"   - Felső korlát: {upper_bound:.1f} szó")
-    logger.info(f"   - Outlier-ek száma: {len(outliers)} ({len(outliers)/len(df)*100:.1f}%)")
+    logger.info(f"   - Also korlat: {lower_bound:.1f} szo")
+    logger.info(f"   - Felso korlat: {upper_bound:.1f} szo")
+    logger.info(f"   - Outlier-ek szama: {len(outliers)} ({len(outliers)/len(df)*100:.1f}%)")
     
     if len(outliers) > 0:
-        logger.info(f"   Outlier példák:")
+        logger.info(f"   Outlier peldak:")
         for idx, row in outliers.head(3).iterrows():
-            logger.info(f"     - {row['_word_count']} szó (szint {row['label_int']}): '{row['paragraph_text'][:80]}...'")
+            logger.info(f"     - {row['_word_count']} szo (szint {row['label_int']}): '{row['paragraph_text'][:80]}...'")
     
-    # 7. Szókincs statisztikák
-    logger.info(f"\n7. SZÓKINCS MÉRET")
+    # 7. Szokincs statisztikak
+    logger.info(f"\n7. SZOKINCS MERET")
     all_words = ' '.join(df['paragraph_text'].str.lower()).split()
     unique_words = set(all_words)
-    logger.info(f"   Összes szó: {len(all_words):,}")
+    logger.info(f"   Osszes szo: {len(all_words):,}")
     logger.info(f"   Egyedi szavak: {len(unique_words):,}")
-    logger.info(f"   Szókincs gazdagság (Type-Token Ratio): {len(unique_words)/len(all_words):.4f}")
+    logger.info(f"   Szokincs gazdagsag (Type-Token Ratio): {len(unique_words)/len(all_words):.4f}")
     
     # Leggyakoribb szavak
     from collections import Counter
     word_freq = Counter(all_words)
-    logger.info(f"\n   10 leggyakoribb szó:")
+    logger.info(f"\n   10 leggyakoribb szo:")
     for word, count in word_freq.most_common(10):
-        logger.info(f"     - '{word}': {count} előfordulás")
+        logger.info(f"     - '{word}': {count} elofordulas")
     
-    # Tisztítás: temporary oszlopok eltávolítása
+    # Tisztitas: temporary oszlopok eltavolitasa
     df.drop(['_text_length', '_word_count', '_has_legal_term', '_has_legal_abbr'], axis=1, inplace=True)
     
     logger.info("\n" + "=" * 80)
-    logger.info("ADATELEMZÉS BEFEJEZVE")
+    logger.info("ADATELEMZES BEFEJEZVE")
     logger.info("=" * 80 + "\n")
 
 def get_processed_data(annotation_path: str, output_path: str, logger) -> None:
@@ -356,14 +350,14 @@ def get_processed_data(annotation_path: str, output_path: str, logger) -> None:
     """
     df_labels = load_annotation_json(annotation_path, logger)
     if df_labels.empty:
-        logger.error("Nincsenek betölthető adatok, a folyamat leáll.")
+        logger.error("Nincsenek betoltheto adatok, a folyamat leall.")
         return
 
-    logger.info(f"Betöltött címkék száma: {len(df_labels)}")
+    logger.info(f"Betoltott cimkek szama: {len(df_labels)}")
     
-    # --- ÚJ: Holdout minta kiválasztása inference teszteléshez ---
+    # --- UJ: Holdout minta kivalasztasa inference teszteleshez ---
     logger.info("\n" + "=" * 80)
-    logger.info("INFERENCE HOLDOUT MINTA KIVÁLASZTÁSA")
+    logger.info("INFERENCE HOLDOUT MINTA KIVALASZTASA")
     logger.info("=" * 80)
     
     # Fix seed a reprodukálhatóságért
@@ -387,33 +381,33 @@ def get_processed_data(annotation_path: str, output_path: str, logger) -> None:
     df_holdout = df_labels.loc[holdout_indices].copy()
     df_training = df_labels.drop(holdout_indices).reset_index(drop=True)
     
-    logger.info(f"Holdout minták száma: {len(df_holdout)}")
-    logger.info(f"Training minták száma: {len(df_training)}")
-    logger.info("\nKiválasztott holdout példák:")
+    logger.info(f"Holdout mintak szama: {len(df_holdout)}")
+    logger.info(f"Training mintak szama: {len(df_training)}")
+    logger.info("\nKivalasztott holdout peldak:")
     for idx, row in df_holdout.iterrows():
-        logger.info(f"  - Task ID {row['task_id']}, Címke: {row['label_int']}, Szöveg: '{row['paragraph_text'][:80]}...'")
+        logger.info(f"  - Task ID {row['task_id']}, Cimke: {row['label_int']}, Szoveg: '{row['paragraph_text'][:80]}...'")
     logger.info("=" * 80 + "\n")
     
     # --- Részletes adat analízis (csak training adaton) ---
     analyze_data(df_training, logger)
     
-    # --- Folytatás a jellemzőkinyeréssel (TRAINING adat) ---
-    logger.info("\n--- Jellemzőkinyerés (Training adat) ---")
+    # --- Folytatas a jellemzokinyeressel (TRAINING adat) ---
+    logger.info("\n--- Jellemzokinyeres (Training adat) ---")
     feature_rows_train = [extract_features(t) for t in tqdm(df_training['paragraph_text'], desc='Training Feature Extraction')]
     df_feat_train = pd.DataFrame(feature_rows_train)
     df_processed_train = pd.concat([df_training.reset_index(drop=True), df_feat_train], axis=1)
     
-    # --- Fold assignment hozzáadása (K-Fold CV-hez) ---
+    # --- Fold assignment hozzaadasa (K-Fold CV-hez) ---
     from sklearn.model_selection import StratifiedKFold
     logger.info("\n--- K-Fold assignment (5-fold stratified split) ---")
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     df_processed_train['fold'] = -1
     for fold_idx, (train_idx, val_idx) in enumerate(skf.split(df_processed_train, df_processed_train['label_int'])):
         df_processed_train.loc[val_idx, 'fold'] = fold_idx
-    logger.info(f"Fold eloszlás:\n{df_processed_train['fold'].value_counts().sort_index()}")
+    logger.info(f"Fold eloszlas:\n{df_processed_train['fold'].value_counts().sort_index()}")
     
-    # --- Jellemzőkinyerés (HOLDOUT adat) ---
-    logger.info("\n--- Jellemzőkinyerés (Holdout/Inference adat) ---")
+    # --- Jellemzokinyeres (HOLDOUT adat) ---
+    logger.info("\n--- Jellemzokinyeres (Holdout/Inference adat) ---")
     feature_rows_holdout = [extract_features(t) for t in tqdm(df_holdout['paragraph_text'], desc='Holdout Feature Extraction')]
     df_feat_holdout = pd.DataFrame(feature_rows_holdout)
     df_processed_holdout = pd.concat([df_holdout.reset_index(drop=True), df_feat_holdout], axis=1)
@@ -422,16 +416,16 @@ def get_processed_data(annotation_path: str, output_path: str, logger) -> None:
     output_dir = Path(output_path).parent
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Training adat mentése
+    # Training adat mentese
     df_processed_train.to_csv(output_path, index=False)
     logger.info(f"Training adat elmentve: {output_path} ({len(df_processed_train)} sor)")
     
-    # Holdout adat mentése külön fájlba
+    # Holdout adat mentese kulon fajlba
     holdout_path = output_path.replace('processed_data.csv', 'inference_holdout.csv')
     df_processed_holdout.to_csv(holdout_path, index=False)
     logger.info(f"Inference holdout adat elmentve: {holdout_path} ({len(df_processed_holdout)} sor)")
     
-    logger.info(f"\nAz adat-előfeldolgozás befejeződött.")
+    logger.info(f"\nAz adat-elofeldolgozas befejezodott.")
 
 from utils import get_logger
 from config import (
@@ -445,27 +439,27 @@ if __name__ == '__main__':
     logger.info("LEGAL TEXT DECODER - Adatfeldolgozás és Modell Tanítási Pipeline")
     logger.info("=" * 80)
     
-    logger.info("\n--- KONFIGURÁCIÓS PARAMÉTEREK ---")
+    logger.info("\n--- KONFIGURACIÓS PARAMETEREK ---")
     logger.info(f"Random Seed: {SEED}")
     logger.info(f"Device: {DEVICE}")
     logger.info(f"Transformer Modell: {MODEL_NAME}")
-    logger.info(f"Osztályok száma: {NUM_CLASSES} (1-5 skála)")
-    logger.info(f"Max tokenizálási hossz: {MAX_LEN}")
-    logger.info("\nTanítási hiperparaméterek:")
+    logger.info(f"Osztalyok szama: {NUM_CLASSES} (1-5 skala)")
+    logger.info(f"Max tokenizalasi hossz: {MAX_LEN}")
+    logger.info("\nTanitasi hiperparameterek:")
     logger.info(f"  - Batch Size: {BATCH_SIZE}")
     logger.info(f"  - Epochs: {EPOCHS}")
     logger.info(f"  - Learning Rate: {LEARNING_RATE}")
     logger.info(f"  - K-Fold CV: {KFOLDS} fold")
     logger.info(f"  - Early Stopping Patience: {PATIENCE} epoch")
-    logger.info("\nÚtvonalak:")
-    logger.info(f"  - Annotáció: {ANNOTATION_PATH}")
+    logger.info("\nUtvonalak:")
+    logger.info(f"  - Annotacio: {ANNOTATION_PATH}")
     logger.info(f"  - Feldolgozott adat: {PROCESSED_DATA_PATH}")
     logger.info("-" * 80)
     
-    logger.info("\n--- Adat-előfeldolgozási Folyamat Indítása ---")
+    logger.info("\n--- Adat-elofeldolgozasi Folyamat Inditasa ---")
     get_processed_data(
         annotation_path=ANNOTATION_PATH,
         output_path=PROCESSED_DATA_PATH,
         logger=logger
     )
-    logger.info("--- Adat-előfeldolgozási Folyamat Befejeződött ---")
+    logger.info("--- Adat-elofeldolgozasi Folyamat Befejezodott ---")

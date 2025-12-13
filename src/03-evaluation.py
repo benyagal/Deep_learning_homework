@@ -37,23 +37,23 @@ def plot_test_confusion_matrix(y_true, y_pred, model_name, mae, output_path):
                 xticklabels=list(range(1, config.NUM_CLASSES + 1)),
                 yticklabels=list(range(1, config.NUM_CLASSES + 1)))
     plt.title(f'{model_name} - Test Set Confusion Matrix (MAE: {mae:.4f})')
-    plt.xlabel('Prediktált Címke')
-    plt.ylabel('Valós Címke')
+    plt.xlabel('Prediktalt Cimke')
+    plt.ylabel('Valos Cimke')
     plt.savefig(output_path)
     plt.close()
-    logger.info(f"Tévesztési mátrix mentve: {output_path}")
+    logger.info(f"Tevesztesi matrix mentve: {output_path}")
 
 def evaluate_model_on_test(model_path, test_loader, model_name):
     """Egy modellt kiértékel a test set-en."""
     logger.info(f"\n{'='*60}")
-    logger.info(f"Modell kiértékelése: {model_name}")
-    logger.info(f"Modell útvonal: {model_path}")
+    logger.info(f"Modell kiertekeles: {model_name}")
+    logger.info(f"Modell utvonal: {model_path}")
     logger.info(f"{'='*60}")
     
-    # Ellenőrzés: létezik-e a modell fájl
+    # Ellenorzes: letezik-e a modell fajl
     if not Path(model_path).exists():
-        logger.error(f"HIBA: A modell fájl nem található: {model_path}")
-        logger.error("Kérjük, először futtasd a 02-training.py szkriptet!")
+        logger.error(f"HIBA: A modell fajl nem talalhato: {model_path}")
+        logger.error("Kerlek, eloszor futtasd a 02-training.py szkriptet!")
         return None, None
     
     model = CoralModel(config.MODEL_NAME, num_classes=config.NUM_CLASSES, extra_feat_dim=len(config.FEATURE_COLS))
@@ -61,7 +61,7 @@ def evaluate_model_on_test(model_path, test_loader, model_name):
     try:
         model.load_state_dict(torch.load(model_path, map_location=config.DEVICE))
     except Exception as e:
-        logger.error(f"HIBA a modell betöltése közben: {e}")
+        logger.error(f"HIBA a modell betoltese kozben: {e}")
         return None, None
     
     model.to(config.DEVICE)
@@ -85,32 +85,32 @@ def evaluate_model_on_test(model_path, test_loader, model_name):
     mae = mean_absolute_error(all_labels, all_preds)
     qwk = cohen_kappa_score(all_labels, all_preds, weights='quadratic')
     
-    logger.info(f"Eredmények:")
+    logger.info(f"Eredmenyek:")
     logger.info(f"  MAE: {mae:.4f}")
     logger.info(f"  QWK: {qwk:.4f}")
     
-    # Confusion matrix mentése
+    # Confusion matrix mentese
     cm_path = f"{config.LOG_DIR}/{model_name}_test_confusion_matrix.png"
     plot_test_confusion_matrix(all_labels, all_preds, model_name, mae, cm_path)
     
     return mae, qwk
 
 def main():
-    logger.info("--- Modell Kiértékelési Folyamat Indítása ---")
+    logger.info("--- Modell Kiertekeles Folyamat Inditasa ---")
     
-    # Adatok betöltése
+    # Adatok betoltese
     try:
         df = pd.read_csv(config.PROCESSED_DATA_PATH)
-        logger.info(f"Feldolgozott adatok betöltve: {len(df)} sor")
+        logger.info(f"Feldolgozott adatok betoltve: {len(df)} sor")
     except FileNotFoundError:
         logger.error(f"HIBA: A feldolgozott adatfájl nem található: {config.PROCESSED_DATA_PATH}")
         logger.error("Kérjük, először futtasd a 01-data-preprocessing.py szkriptet!")
         return
     
-    # Ellenőrzés: van-e 'fold' oszlop
+    # Ellenorzes: van-e 'fold' oszlop
     if 'fold' not in df.columns:
-        logger.error("HIBA: A 'fold' oszlop nem található a feldolgozott adatokban!")
-        logger.error("Kérjük, futtasd újra a 01-data-preprocessing.py szkriptet!")
+        logger.error("HIBA: A 'fold' oszlop nem talalhato a feldolgozott adatokban!")
+        logger.error("Kerlek, futtasd ujra a 01-data-preprocessing.py szkriptet!")
         return
     
     # Test set: fold == 0
@@ -120,13 +120,13 @@ def main():
         logger.error("HIBA: Nincs test adat (fold == 0)!")
         return
     
-    logger.info(f"Test set mérete: {len(test_df)} példa")
+    logger.info(f"Test set merete: {len(test_df)} pelda")
     
     tokenizer = AutoTokenizer.from_pretrained(config.MODEL_NAME)
     
-    # Feature statisztikák - FONTOS: Ezeket a teljes train setből kellene számolni,
-    # de mivel most csak a test-en értékelünk, használjuk a test set statisztikáit
-    # (Production környezetben ezeket a training során kellene elmenteni!)
+    # Feature statisztikak - FONTOS: Ezeket a teljes train setbol kellene szamolni,
+    # de mivel most csak a test-en ertekelunk, hasznaljuk a test set statisztikat
+    # (Production kornyezetben ezeket a training soran kellene elmenteni!)
     feature_stats = {
         c: (test_df[c].mean(), test_df[c].std() if test_df[c].std() > 0 else 1.0)
         for c in config.FEATURE_COLS
@@ -142,7 +142,7 @@ def main():
     )
     
     logger.info("\n" + "="*80)
-    logger.info("TESZT HALMAZ KIÉRTÉKELÉSE")
+    logger.info("TESZT HALMAZ KIERTEKELES")
     logger.info("="*80)
     
     # Minden fold modelljét kiértékeljük
@@ -155,10 +155,10 @@ def main():
         if mae is not None:
             all_results.append({'fold': fold, 'mae': mae, 'qwk': qwk})
     
-    # Összesített eredmények
+    # Osszesitett eredmenyek
     if all_results:
         logger.info("\n" + "="*80)
-        logger.info("ÖSSZESÍTETT EREDMÉNYEK (Test Set)")
+        logger.info("OSSZESITETT EREDMENYEK (Test Set)")
         logger.info("="*80)
         
         for res in all_results:
@@ -167,13 +167,13 @@ def main():
         avg_mae = sum(r['mae'] for r in all_results) / len(all_results)
         avg_qwk = sum(r['qwk'] for r in all_results) / len(all_results)
         
-        logger.info(f"\nÁtlagos MAE: {avg_mae:.4f}")
-        logger.info(f"Átlagos QWK: {avg_qwk:.4f}")
+        logger.info(f"\nAtlagos MAE: {avg_mae:.4f}")
+        logger.info(f"Atlagos QWK: {avg_qwk:.4f}")
         logger.info("="*80)
     else:
-        logger.error("Nem sikerült egyetlen modellt sem kiértékelni!")
+        logger.error("Nem sikerult egyetlen modellt sem kiertelelni!")
     
-    logger.info("\n--- Kiértékelés Befejezve ---")
+    logger.info("\n--- Kiertekeles Befejezve ---")
 
 if __name__ == '__main__':
     main()

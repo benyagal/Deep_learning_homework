@@ -10,6 +10,7 @@ from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
+from mord import LogisticAT  # Ordinal regression baseline
 
 import config
 from model import CoralModel, create_data_loader
@@ -44,29 +45,86 @@ def plot_confusion_matrix(y_true, y_pred, fold, best_mae, logger):
     sns.heatmap(cm_norm, annot=True, fmt='.2f', cmap='Blues', 
                 xticklabels=list(range(1, config.NUM_CLASSES + 1)), 
                 yticklabels=list(range(1, config.NUM_CLASSES + 1)))
-    plt.title(f'Fold {fold} - Normalizált Tévesztési Mátrix (Best MAE: {best_mae:.4f})')
-    plt.xlabel('Prediktált Címke')
-    plt.ylabel('Valós Címke')
+    plt.title(f'Fold {fold} - Normalizalt Tevesztesi Matrix (Best MAE: {best_mae:.4f})')
+    plt.xlabel('Prediktalt Cimke')
+    plt.ylabel('Valos Cimke')
     
-    # Mentés a log könyvtárba
+    # Mentes a log konyvtarba
     output_path = f"{config.LOG_DIR}/fold_{fold}_confusion_matrix.png"
     plt.savefig(output_path)
     plt.close()
-    logger.info(f"Tévesztési mátrix mentve: {output_path}")
+    logger.info(f"Tevesztesi matrix mentve: {output_path}")
+
+def train_baseline_model(df_processed, logger):
+    """
+    Baseline modell: LogisticAT ordinal regression csak a 23 handcrafted feature-rel.
+    Egyszeri tanitas 80/20 train/test split-tel.
+    """
+    from sklearn.model_selection import train_test_split
+    
+    logger.info("\n" + "=" * 80)
+    logger.info("BASELINE MODEL - Ordinal Regression (LogisticAT)")
+    logger.info("=" * 80)
+    logger.info("Csak a 23 handcrafted feature-t hasznalja (nincs transformer)")
+    logger.info(f"Modell: mord.LogisticAT (Ordinal Logistic Regression)")
+    logger.info(f"Features: {len(config.FEATURE_COLS)} db")
+    logger.info(f"Train/Test split: 80/20")
+    logger.info("=" * 80 + "\n")
+    
+    # Train/test split (80/20)
+    X = df_processed[config.FEATURE_COLS].values
+    y = df_processed['label_int'].values
+    
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=config.SEED, stratify=y
+    )
+    
+    logger.info(f"Train set: {len(X_train)} pelda")
+    logger.info(f"Test set:  {len(X_test)} pelda")
+    
+    # LogisticAT tanítása
+    logger.info("\nTanitas...")
+    baseline_model = LogisticAT(alpha=1.0)  # Ridge regularization
+    baseline_model.fit(X_train, y_train)
+    
+    # Predikciók és metrikák
+    y_pred = baseline_model.predict(X_test)
+    mae = mean_absolute_error(y_test, y_pred)
+    qwk = cohen_kappa_score(y_test, y_pred, weights='quadratic')
+    
+    logger.info("\n" + "-" * 80)
+    logger.info("BASELINE EREDMENYEK:")
+    logger.info(f"  Test MAE: {mae:.4f}")
+    logger.info(f"  Test QWK: {qwk:.4f}")
+    logger.info("  (Ez a referenciaeredmeny a deep learning modellhez kepest)")
+    logger.info("-" * 80 + "\n")
+    
+    return mae, qwk
 
 def run_training(df_processed, logger):
     """
     A teljes K-Fold keresztvalidációs tanítási folyamatot futtatja.
+    Először a baseline modell, utána a deep learning modell.
     """
     if df_processed.empty:
-        logger.error("Nincs feldolgozott adat a tanításhoz.")
+        logger.error("Nincs feldolgozott adat a tanitashoz.")
         return
 
+    # === 1. BASELINE MODELL ===
+    baseline_mae, baseline_qwk = train_baseline_model(df_processed, logger)
+    
+    # === 2. DEEP LEARNING MODELL ===
+    logger.info("\n" + "=" * 80)
+    logger.info("DEEP LEARNING MODEL - CORAL + Transformer")
+    logger.info("=" * 80)
+    logger.info("Hibrid modell: Transformer embeddings + 23 handcrafted features")
+    logger.info("=" * 80 + "\n")
+    
     tokenizer = AutoTokenizer.from_pretrained(config.MODEL_NAME)
     
-    # --- Modell architektúra naplózása ---
+    # --- Modell architektura naplozasa ---
     logger.info("\n" + "=" * 80)
-    logger.info("MODELL ARCHITEKTÚRA")
+    logger.info("MODELL ARCHITEKTURA")
     logger.info("=" * 80)
     model_for_summary = CoralModel(config.MODEL_NAME, num_classes=config.NUM_CLASSES, extra_feat_dim=len(config.FEATURE_COLS))
     
@@ -83,20 +141,20 @@ def run_training(df_processed, logger):
     trainable_params = backbone_trainable + head_trainable
     
     logger.info(f"\nTransformer Backbone: {config.MODEL_NAME}")
-    logger.info(f"  - Backbone paraméterek: {backbone_params:,} (tanítható: {backbone_trainable:,})")
+    logger.info(f"  - Backbone parameterek: {backbone_params:,} (tanitható: {backbone_trainable:,})")
     logger.info(f"  - Hidden size: 768")
     logger.info(f"  - Layers: 12 (transformer encoder)")
     
     logger.info(f"\nCORAL Head:")
     logger.info(f"  - Input: [CLS] (768) + Extra Features ({len(config.FEATURE_COLS)})")
     logger.info(f"  - MLP hidden layer: 256 (LayerNorm + GELU + Dropout)")
-    logger.info(f"  - Output: {config.NUM_CLASSES - 1} küszöb (sigmoid)")
-    logger.info(f"  - Head paraméterek: {head_params:,} (mind tanítható)")
+    logger.info(f"  - Output: {config.NUM_CLASSES - 1} kuszob (sigmoid)")
+    logger.info(f"  - Head parameterek: {head_params:,} (mind tanitható)")
     
-    logger.info(f"\nÖsszesen:")
-    logger.info(f"  - Összes paraméter: {total_params:,}")
-    logger.info(f"  - Tanítható paraméter: {trainable_params:,}")
-    logger.info(f"  - Nem-tanítható: {total_params - trainable_params:,}")
+    logger.info(f"\nOsszesen:")
+    logger.info(f"  - Osszes parameter: {total_params:,}")
+    logger.info(f"  - Tanitható parameter: {trainable_params:,}")
+    logger.info(f"  - Nem-tanitható: {total_params - trainable_params:,}")
     logger.info("=" * 80 + "\n")
 
     skf = StratifiedKFold(n_splits=config.KFOLDS, shuffle=True, random_state=config.SEED)
@@ -109,7 +167,7 @@ def run_training(df_processed, logger):
         df_train_f = df_processed.iloc[train_idx].reset_index(drop=True)
         df_val_f = df_processed.iloc[val_idx].reset_index(drop=True)
 
-        # Jellemzők normalizálásához szükséges statisztikák számítása (csak a train adatokon!)
+        # Jellemzok normalizalasahoz szukseges statisztikak szamitasa (csak a train adatokon!)
         feature_stats_f = {
             c: (df_train_f[c].mean(), df_train_f[c].std() if df_train_f[c].std() > 0 else 1.0) 
             for c in config.FEATURE_COLS
@@ -203,10 +261,20 @@ def run_training(df_processed, logger):
         plot_confusion_matrix(all_lab_best, all_pred_best, fold, best_mae_f, logger)
 
     mean_mae = np.mean(fold_results)
-    logger.info(f'\n--- Végső Kiértékelés ---')
+    logger.info(f'\n--- Vegso Kiertekeles ---')
     logger.info(f'Fold MAE-k: {fold_results}')
-    logger.info(f'Átlagos MAE a {config.KFOLDS} foldon: {mean_mae:.4f}')
+    logger.info(f'Atlagos MAE a {config.KFOLDS} foldon: {mean_mae:.4f}')
     logger.info("--------------------------")
+    
+    # === OSSZEHASONLITAS ===
+    logger.info("\n" + "=" * 80)
+    logger.info("BASELINE vs DEEP LEARNING OSSZEHASONLITAS")
+    logger.info("=" * 80)
+    logger.info(f"Baseline (LogisticAT):        MAE = {baseline_mae:.4f}")
+    logger.info(f"Deep Learning (CORAL+BERT):   MAE = {mean_mae:.4f}")
+    improvement = ((baseline_mae - mean_mae) / baseline_mae) * 100
+    logger.info(f"Javulas: {improvement:.1f}%")
+    logger.info("=" * 80 + "\n")
 
 if __name__ == '__main__':
     """Standalone futtatás: CSV betöltése és tanítás indítása."""
@@ -214,17 +282,17 @@ if __name__ == '__main__':
     from utils import get_logger
     
     logger = get_logger(__name__)
-    logger.info("02-training.py: Standalone mód indítása")
+    logger.info("02-training.py: Standalone mod inditasa")
     
-    # Adatok betöltése
-    logger.info(f"Feldolgozott adatok betöltése: {config.PROCESSED_DATA_PATH}")
+    # Adatok betoltese
+    logger.info(f"Feldolgozott adatok betoltese: {config.PROCESSED_DATA_PATH}")
     try:
         df_processed = pd.read_csv(config.PROCESSED_DATA_PATH)
-        logger.info(f"Betöltve {len(df_processed)} sor, {len(df_processed.columns)} oszlop")
+        logger.info(f"Betoltve {len(df_processed)} sor, {len(df_processed.columns)} oszlop")
         logger.info(f"Oszlopok: {list(df_processed.columns)}")
     except FileNotFoundError:
-        logger.error(f"HIBA: A feldolgozott adatfájl nem található: {config.PROCESSED_DATA_PATH}")
-        logger.error("Kérjük, először futtasd a 01-data-preprocessing.py szkriptet!")
+        logger.error(f"HIBA: A feldolgozott adatfajl nem talalhato: {config.PROCESSED_DATA_PATH}")
+        logger.error("Kerlek, eloszor futtasd a 01-data-preprocessing.py szkriptet!")
         exit(1)
     
     # Tanítás futtatása

@@ -59,7 +59,7 @@ def run_inference_on_holdout():
         return
     
     # 2. Modell betöltése (használjuk az első fold legjobb modelljét)
-    model_path = f"{config.MODELS_DIR}/coral_fold1_best.bin"
+    model_path = f"{config.MODELS_DIR}/coral_fold5_best.bin"
     
     if not Path(model_path).exists():
         logger.error(f"HIBA: A modell fajl nem talalhato: {model_path}")

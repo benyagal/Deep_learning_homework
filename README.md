@@ -43,6 +43,7 @@ dl_project_legal_text_decoder/
 │   └── utils.py                     # Logger utilities
 ├── notebooks/
 │   └── notebook_best.ipynb          # Experimental notebook
+├── data/                            # Data directory (mounted from host, gitignored except .gitkeep)
 ├── log/                             # Training logs (gitignored, .gitkeep tracked)
 ├── models/                          # Saved models (gitignored, .gitkeep tracked)
 ├── Dockerfile                       # Docker image definition
@@ -53,14 +54,12 @@ dl_project_legal_text_decoder/
 
 ## Data Preparation
 
-The training requires the `granit_bank_cimkezes.json` annotation file.
+The project includes an empty `data/` directory that will be mounted during Docker execution.
 
-**Automatic Download**: The pipeline automatically downloads the annotation file from Google Drive if it's not present in the data directory. No manual download needed!
+**Automatic Download (Recommended)**: 
+- The pipeline automatically downloads `granit_bank_cimkezes.json` from Google Drive if not present
+- No manual download needed - just run the Docker container!
 
-**Manual Setup** (alternative):
-1. Download from: https://drive.google.com/file/d/19UlAsuzprmhTl_I5Z_58d7AAIw3eJX_l/view
-2. Create a `data` directory outside the project folder (e.g., `C:\Users\YourUser\Documents\dl_project_data`)
-3. Place the JSON file in the `data` directory
 
 ## Docker Instructions
 
@@ -71,24 +70,25 @@ Build the Docker image from the repository root:
 docker build -t legal-text-decoder .
 ```
 
-### Run
-Mount your local data directory and redirect output to log file. Replace `/path/to/your/local/data` with your actual data directory path:
+### Ruthe project's `data/` directory to persist downloaded files, processed data, and trained models:
 
-```bash
-docker run --rm -v /path/to/your/local/data:/app/data legal-text-decoder > log/run.log 2>&1
-```
-
-**Windows (PowerShell) example:**
+**Windows (PowerShell):**
 ```powershell
-# Run Docker container (log and data directories are auto-created)
-docker run --rm -v "C:\Users\YourUser\Documents\dl_project_data:/app/data" legal-text-decoder > log/run.log 2>&1
+docker run --rm -v "${PWD}\data:/app/data" legal-text-decoder > log/run.log 2>&1
 ```
 
-**Linux/Mac example:**
+**Linux/Mac:**
 ```bash
-docker run --rm -v /home/user/dl_project_data:/app/data legal-text-decoder > log/run.log 2>&1
+docker run --rm -v "$(pwd)/data:/app/data" legal-text-decoder > log/run.log 2>&1
 ```
 
+**What gets saved in `data/`:**
+- `granit_bank_cimkezes.json` - Annotation file (auto-downloaded if missing)
+- `processed_data.csv` - Training data with extracted features
+- `inference_holdout.csv` - Holdout examples for inference
+- `models/` - Trained CORAL models (`coral_fold1_best.bin` ... `coral_fold5_best.bin`)
+
+**Note**: All directories are automatically created. The complete execution log is saved to `log/run.log`.
 **Note**: The `log/`, `models/`, and `data/` directories are automatically created if they don't exist - no manual setup required!
 
 The complete execution log will be saved to `log/run.log`.
@@ -98,7 +98,7 @@ The complete execution log will be saved to `log/run.log`.
 The `run.sh` script executes the following stages sequentially:
 
 1. **01-data-preprocessing.py**: 
-   - Loads JSON annotations (~1000 examples)
+   - Loads JSON annotations
    - **Randomly selects 2 examples as holdout set (unseen data)**
    - Saves holdout examples to `data/inference_holdout.csv`
    - Performs exploratory data analysis (EDA) on training data

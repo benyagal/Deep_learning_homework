@@ -4,11 +4,10 @@ __pycache__/
 *.pyo
 *.pyd
 
-# Generált könyvtárak
-/data/
-
-# A log és models mappák tartalmát ignoráljuk, de a mappákat magukat
+# A data, log és models mappák tartalmát ignoráljuk, de a mappákat magukat
 # a .gitkeep fájl segítségével megtartjuk a verziókezelésben.
+data/*
+!data/.gitkeep
 log/*
 !log/.gitkeep
 models/*

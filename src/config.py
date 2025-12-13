@@ -12,7 +12,7 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # -- Adatfájlok útvonalai
 # A konténeren belüli útvonalak. Az adatokat a `docker run -v` paranccsal kell csatolni.
 DATA_DIR = "/app/data"
-MODELS_DIR = "/app/models"
+MODELS_DIR = "/app/data/models"  # Modellek a data mappaban (mountolt terulet)
 LOG_DIR = "/app/log"
 
 # Automatikus mappa létrehozás (ha nem létezik)
