@@ -5,6 +5,7 @@ Inference a kiválasztott holdout adatokon (új, nem látott példák).
 """
 import torch
 import pandas as pd
+import numpy as np
 from transformers import AutoTokenizer
 from sklearn.metrics import mean_absolute_error, cohen_kappa_score
 from pathlib import Path
