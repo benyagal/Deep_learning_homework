@@ -87,10 +87,14 @@ docker run --rm -v "$(pwd)/data:/app/data" legal-text-decoder > log/run.log 2>&1
 
 **What gets saved in `data/`:**
 - `granit_bank_cimkezes.json` - Annotation file (auto-downloaded if missing)
-- `processed_data.csv` - Training data with extracted features
-- `inference_holdout.csv` - Holdout examples for inference
+- `processed_data.csv` - Training data with extracted features and fold assignments
+- `inference_holdout.csv` - 2 holdout examples (unseen data)
 - `baseline_results.json` - Baseline model performance metrics (MAE, QWK)
--  Confusion matrices for each fold
+- `best_model_info.json` - Best fold selection info for ensemble inference
+- `Fold1_validation_confusion_matrix.png` through `Fold5_validation_confusion_matrix.png` - Confusion matrices
+- `models/` - Directory containing:
+  - `coral_fold1_best.bin` through `coral_fold5_best.bin` - Trained models
+  - `coral_fold1_feature_stats.json` through `coral_fold5_feature_stats.json` - Feature normalization parameters
 
 The complete execution log will be saved to `log/run.log`.
 
