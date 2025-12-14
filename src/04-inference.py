@@ -58,110 +58,111 @@ def run_inference_on_holdout():
         logger.error(f"HIBA: Hianyzoo oszlopok a holdout adatokban: {missing_cols}")
         return
     
-    # 2. Legjobb modell kiválasztása és betöltése
+    # 2. ENSEMBLE PREDICTION - Mind az 5 fold modellje
     import json
-    best_model_info_path = f"{config.DATA_DIR}/best_model_info.json"
     
-    # Próbáljuk betölteni a legjobb fold információt
-    if Path(best_model_info_path).exists():
-        with open(best_model_info_path, 'r') as f:
-            best_info = json.load(f)
-        best_fold = best_info['best_fold']
-        logger.info(f"Legjobb modell: Fold {best_fold} (MAE={best_info['mae']:.4f}, QWK={best_info['qwk']:.4f})")
-    else:
-        logger.warning(f"Legjobb modell info nem talalhato: {best_model_info_path}")
-        logger.warning("Fallback: Fold 5 modell hasznalata")
-        best_fold = 5
-    
-    model_path = f"{config.MODELS_DIR}/coral_fold{best_fold}_best.bin"
-    
-    if not Path(model_path).exists():
-        logger.error(f"HIBA: A modell fajl nem talalhato: {model_path}")
-        logger.error("Kerlek, eloszor futtasd a 02-training.py es 03-evaluation.py szkripteket!")
-        return
-    
-    logger.info(f"Modell betoltese: {model_path}")
-    
-    model = CoralModel(config.MODEL_NAME, num_classes=config.NUM_CLASSES, extra_feat_dim=len(config.FEATURE_COLS))
-    
-    try:
-        model.load_state_dict(torch.load(model_path, map_location=config.DEVICE))
-    except Exception as e:
-        logger.error(f"HIBA a modell betoltese kozben: {e}")
-        return
-    
-    model.to(config.DEVICE)
-    model.eval()
+    logger.info("\n" + "="*80)
+    logger.info("ENSEMBLE PREDICTION (5 fold modellek atlaga)")
+    logger.info("="*80)
     
     tokenizer = AutoTokenizer.from_pretrained(config.MODEL_NAME)
     
-    # 3. Feature normalizálás - betöltés a MENTETT statisztikákból (legjobb fold-hoz)
-    stats_path = f"{config.MODELS_DIR}/coral_fold{best_fold}_feature_stats.json"
+    # Minden fold predikcioit taroljuk
+    all_fold_predictions = []
     
-    try:
-        with open(stats_path, 'r') as f:
-            feature_stats = json.load(f)
-        logger.info(f"Feature stats betoltve: {stats_path}")
-        logger.info("(Ugyanazok a statisztikak, mint a Fold 5 training soran)")
-    except FileNotFoundError:
-        logger.warning(f"Feature stats nem talalhato: {stats_path}")
-        logger.warning("Fallback: ujraszamolas a teljes processed_data.csv-bol")
-        try:
+    for fold in range(1, config.KFOLDS + 1):
+        model_path = f"{config.MODELS_DIR}/coral_fold{fold}_best.bin"
+        stats_path = f"{config.MODELS_DIR}/coral_fold{fold}_feature_stats.json"
+        
+        # Modell ellenorzes
+        if not Path(model_path).exists():
+            logger.warning(f"Fold {fold} modell nem talalhato: {model_path}")
+            logger.warning(f"Kihagyva a fold {fold} az ensemble-bol")
+            continue
+        
+        # Feature stats betoltese
+        if Path(stats_path).exists():
+            with open(stats_path, 'r') as f:
+                feature_stats = json.load(f)
+        else:
+            logger.warning(f"Fold {fold} feature stats nem talalhato, ujraszamolas")
             train_df = pd.read_csv(config.PROCESSED_DATA_PATH)
             feature_stats = {
                 c: (train_df[c].mean(), train_df[c].std() if train_df[c].std() > 0 else 1.0)
                 for c in config.FEATURE_COLS
             }
-            logger.info("Feature stats ujraszamolva (lehet elteres!)")
-        except Exception as e:
-            logger.error(f"HIBA: {e}")
-            logger.error("Feature normalizalas nelkul folytatom (NEM AJANLOTT!)")
-            feature_stats = {c: (0.0, 1.0) for c in config.FEATURE_COLS}
+        
+        # Modell betoltese
+        model = CoralModel(config.MODEL_NAME, num_classes=config.NUM_CLASSES, extra_feat_dim=len(config.FEATURE_COLS))
+        model.load_state_dict(torch.load(model_path, map_location=config.DEVICE))
+        model.to(config.DEVICE)
+        model.eval()
+        
+        # DataLoader letrehozasa fold-specifikus feature stats-szal
+        holdout_loader = create_data_loader(
+            holdout_df,
+            tokenizer,
+            config.MAX_LEN,
+            batch_size=1,
+            feature_cols=config.FEATURE_COLS,
+            feature_stats=feature_stats
+        )
+        
+        # Fold predikciok
+        fold_preds = []
+        with torch.no_grad():
+            for batch in holdout_loader:
+                ids = batch['input_ids'].to(config.DEVICE)
+                mask = batch['attention_mask'].to(config.DEVICE)
+                feats = batch['features'].to(config.DEVICE)
+                
+                probs, _ = model(ids, mask, extra_feats=feats)
+                preds = coral_probs_to_label_expected(probs)
+                fold_preds.append(int(preds.item()))
+        
+        all_fold_predictions.append(fold_preds)
+        logger.info(f"Fold {fold} predikciok: {fold_preds}")
     
-    # 4. DataLoader létrehozása
-    holdout_loader = create_data_loader(
-        holdout_df,
-        tokenizer,
-        config.MAX_LEN,
-        batch_size=1,  # Egyesével dolgozzuk fel
-        feature_cols=config.FEATURE_COLS,
-        feature_stats=feature_stats
-    )
+    if len(all_fold_predictions) == 0:
+        logger.error("HIBA: Egyetlen modell sem toltheto be!")
+        return
     
-    # 5. Predikciók és eredmények
+    # Ensemble: atlagolas es kerekites
+    all_fold_predictions = np.array(all_fold_predictions)  # Shape: (n_folds, n_samples)
+    ensemble_preds_raw = np.mean(all_fold_predictions, axis=0)  # Atlag
+    ensemble_preds = np.round(ensemble_preds_raw).astype(int)  # Kerekites
+    ensemble_preds = np.clip(ensemble_preds, 1, config.NUM_CLASSES)  # Biztonsag
+    
+    logger.info(f"\nEnsemble atlag (kerekites elott): {ensemble_preds_raw}")
+    logger.info(f"Vegleges ensemble predikciok: {list(ensemble_preds)}")
+    logger.info("="*80)
+    
+    # 3. Eredmenyek megjelenites
     logger.info("\n" + "-"*80)
-    logger.info("PREDIKCIÓK:")
+    logger.info("PREDIKCIÓK (Ensemble):")
     logger.info("-"*80)
     
     all_labels = []
     all_preds = []
     
-    with torch.no_grad():
-        for idx, batch in enumerate(holdout_loader):
-            ids = batch['input_ids'].to(config.DEVICE)
-            mask = batch['attention_mask'].to(config.DEVICE)
-            feats = batch['features'].to(config.DEVICE)
-            labels = batch['labels'].to(config.DEVICE)
-            
-            probs, _ = model(ids, mask, extra_feats=feats)
-            preds = coral_probs_to_label_expected(probs)
-            
-            true_label = int(labels.item())
-            pred_label = int(preds.item())
-            
-            all_labels.append(true_label)
-            all_preds.append(pred_label)
-            
-            text_snippet = holdout_df.iloc[idx]['paragraph_text'][:100]
-            logger.info(f"\nPelda #{idx+1}:")
-            logger.info(f"  Szoveg: {text_snippet}...")
-            logger.info(f"  Valos cimke: {true_label}")
-            logger.info(f"  Prediktalt cimke: {pred_label}")
-            logger.info(f"  Egyezes: {'IGEN' if true_label == pred_label else 'NEM'}")
+    for idx in range(len(holdout_df)):
+        true_label = int(holdout_df.iloc[idx]['label_int'])
+        pred_label = int(ensemble_preds[idx])
+        
+        all_labels.append(true_label)
+        all_preds.append(pred_label)
+        
+        text_snippet = holdout_df.iloc[idx]['paragraph_text'][:100]
+        logger.info(f"\nPelda #{idx+1}:")
+        logger.info(f"  Szoveg: {text_snippet}...")
+        logger.info(f"  Valos cimke: {true_label}")
+        logger.info(f"  Ensemble predikciok: {all_fold_predictions[:, idx]}")
+        logger.info(f"  Vegleges predikalt cimke: {pred_label}")
+        logger.info(f"  Egyezes: {'IGEN' if true_label == pred_label else 'NEM'}")
     
-    # 6. Osszesitett metrikak
+    # 4. Osszesitett metrikak
     logger.info("\n" + "="*80)
-    logger.info("OSSZESITETT EREDMENYEK (Holdout Set)")
+    logger.info("OSSZESITETT EREDMENYEK (Holdout Set - Ensemble)")
     logger.info("="*80)
     
     mae = mean_absolute_error(all_labels, all_preds)
@@ -169,6 +170,7 @@ def run_inference_on_holdout():
     accuracy = sum(1 for t, p in zip(all_labels, all_preds) if t == p) / len(all_labels)
     
     logger.info(f"Holdout set merete: {len(holdout_df)} pelda")
+    logger.info(f"Hasznalt modellek szama: {len(all_fold_predictions)}")
     logger.info(f"MAE (Mean Absolute Error): {mae:.4f}")
     logger.info(f"QWK (Quadratic Weighted Kappa): {qwk:.4f}")
     logger.info(f"Pontossag: {accuracy:.2%}")
