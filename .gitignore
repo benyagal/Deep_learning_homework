@@ -4,14 +4,14 @@ __pycache__/
 *.pyo
 *.pyd
 
-# A data, log és models mappák tartalmát ignoráljuk, de a mappákat magukat
+# A data és log mappák tartalmát ignoráljuk, de a mappákat magukat
 # a .gitkeep fájl segítségével megtartjuk a verziókezelésben.
+# A modellek a data/models/ mappában vannak (mountolt terület).
 data/*
 !data/.gitkeep
 log/*
 !log/.gitkeep
-models/*
-!models/.gitkeep
+!log/run.log
 
 # Környezeti fájlok
 .env

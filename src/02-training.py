@@ -5,10 +5,8 @@ import torch
 import torch.nn as nn
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
-from sklearn.metrics import mean_absolute_error, cohen_kappa_score, confusion_matrix
+from sklearn.metrics import mean_absolute_error, cohen_kappa_score
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
-import matplotlib.pyplot as plt
-import seaborn as sns
 from tqdm import tqdm
 from mord import LogisticAT  # Ordinal regression baseline
 
@@ -36,24 +34,6 @@ def coral_probs_to_label_expected(probs):
     labels = torch.arange(1, probs.size(1) + 2, device=probs.device).float()
     exp_val = torch.sum(p_exact * labels, dim=1)
     return torch.clamp(torch.round(exp_val), 1, probs.size(1) + 1).long()
-
-def plot_confusion_matrix(y_true, y_pred, fold, best_mae, logger):
-    """Tévesztési mátrixot rajzol és ment."""
-    cm = confusion_matrix(y_true, y_pred, labels=list(range(1, config.NUM_CLASSES + 1)))
-    cm_norm = (cm.T / cm.sum(axis=1)).T  # Normalizálás a valós címkék szerint
-    plt.figure(figsize=(8, 6))
-    sns.heatmap(cm_norm, annot=True, fmt='.2f', cmap='Blues', 
-                xticklabels=list(range(1, config.NUM_CLASSES + 1)), 
-                yticklabels=list(range(1, config.NUM_CLASSES + 1)))
-    plt.title(f'Fold {fold} - Normalizalt Tevesztesi Matrix (Best MAE: {best_mae:.4f})')
-    plt.xlabel('Prediktalt Cimke')
-    plt.ylabel('Valos Cimke')
-    
-    # Mentes a log konyvtarba
-    output_path = f"{config.LOG_DIR}/fold_{fold}_confusion_matrix.png"
-    plt.savefig(output_path)
-    plt.close()
-    logger.info(f"Tevesztesi matrix mentve: {output_path}")
 
 def train_baseline_model(df_processed, logger):
     """
@@ -98,6 +78,17 @@ def train_baseline_model(df_processed, logger):
     logger.info(f"  Test QWK: {qwk:.4f}")
     logger.info("  (Ez a referenciaeredmeny a deep learning modellhez kepest)")
     logger.info("-" * 80 + "\n")
+    
+    # Eredmenyek mentese JSON-ba (03-evaluation.py-hoz)
+    import json
+    baseline_results = {
+        'mae': float(mae),
+        'qwk': float(qwk)
+    }
+    results_path = f"{config.DATA_DIR}/baseline_results.json"
+    with open(results_path, 'w') as f:
+        json.dump(baseline_results, f, indent=2)
+    logger.info(f"Baseline eredmenyek mentve: {results_path}\n")
     
     return mae, qwk
 
@@ -230,7 +221,15 @@ def run_training(df_processed, logger):
                 best_mae_f = mae_f
                 epochs_no_improve = 0
                 torch.save(model_f.state_dict(), f'{config.MODELS_DIR}/coral_fold{fold}_best.bin')
+                
+                # Feature stats mentese (KRITIKUS a helyes inference-hez!)
+                import json
+                stats_path = f'{config.MODELS_DIR}/coral_fold{fold}_feature_stats.json'
+                with open(stats_path, 'w') as f:
+                    json.dump(feature_stats_f, f, indent=2)
+                
                 logger.info(f"Uj legjobb modell mentve (MAE: {best_mae_f:.4f})")
+                logger.info(f"Feature stats mentve: {stats_path}")
             else:
                 epochs_no_improve += 1
                 if epochs_no_improve >= config.PATIENCE:
@@ -257,24 +256,13 @@ def run_training(df_processed, logger):
                 preds = coral_probs_to_label_expected(probs)
                 all_lab_best.extend(labels.cpu().numpy())
                 all_pred_best.extend(preds.cpu().numpy())
-        
-        plot_confusion_matrix(all_lab_best, all_pred_best, fold, best_mae_f, logger)
 
     mean_mae = np.mean(fold_results)
     logger.info(f'\n--- Vegso Kiertekeles ---')
     logger.info(f'Fold MAE-k: {fold_results}')
     logger.info(f'Atlagos MAE a {config.KFOLDS} foldon: {mean_mae:.4f}')
     logger.info("--------------------------")
-    
-    # === OSSZEHASONLITAS ===
-    logger.info("\n" + "=" * 80)
-    logger.info("BASELINE vs DEEP LEARNING OSSZEHASONLITAS")
-    logger.info("=" * 80)
-    logger.info(f"Baseline (LogisticAT):        MAE = {baseline_mae:.4f}")
-    logger.info(f"Deep Learning (CORAL+BERT):   MAE = {mean_mae:.4f}")
-    improvement = ((baseline_mae - mean_mae) / baseline_mae) * 100
-    logger.info(f"Javulas: {improvement:.1f}%")
-    logger.info("=" * 80 + "\n")
+    logger.info("NOTE: Reszletes osszehasonlitas a 03-evaluation.py-ban.")
 
 if __name__ == '__main__':
     """Standalone futtatás: CSV betöltése és tanítás indítása."""

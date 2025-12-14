@@ -25,27 +25,27 @@ The model predicts readability levels of Hungarian legal documents (Gránit Bank
    - 5-fold cross-validation with early stopping
    - Metrics: MAE (Mean Absolute Error), QWK (Quadratic Weighted Kappa)
 
-The pipeline runs fully automated in Docker, logging all training details to stdout.
+The pipeline runs fully automated in Docker, logging all training details to log/run.log.
 
 ## Project Structure
 
-The repository does not include data files, trained models, or logs - these are generated during runtime and mounted via Docker volumes.
+The repository does not include data files, trained models, or logs. These are generated or downloaded during runtime.
 
 ```
 dl_project_legal_text_decoder/
 ├── src/
-│   ├── 01-data-preprocessing.py    # Data loading, EDA, feature extraction
-│   ├── 02-training.py               # Model training with 5-fold CV
-│   ├── 03-evaluation.py             # Test set evaluation
-│   ├── 04-inference.py              # CLI prediction tool
+│   ├── 01-data-preprocessing.py     # Data loading, analyzing, feature extraction
+│   ├── 02-training.py               # Baseline model training and training the main model with 5-fold CV
+│   ├── 03-evaluation.py             # Evaluation on validation
+│   ├── 04-inference.py              # Holdout set prediction (2 unseen examples)
 │   ├── config.py                    # Configuration and hyperparameters
 │   ├── model.py                     # PyTorch model definitions
 │   └── utils.py                     # Logger utilities
 ├── notebooks/
 │   └── notebook_best.ipynb          # Experimental notebook
 ├── data/                            # Data directory (mounted from host, gitignored except .gitkeep)
-├── log/                             # Training logs (gitignored, .gitkeep tracked)
-├── models/                          # Saved models (gitignored, .gitkeep tracked)
+├── log/                             
+|   └── run.log                      # Contains all the logs
 ├── Dockerfile                       # Docker image definition
 ├── requirements.txt                 # Python dependencies (pinned versions)
 ├── run.sh                           # Orchestration script (01→02→03→04)
@@ -60,6 +60,9 @@ The project includes an empty `data/` directory that will be mounted during Dock
 - The pipeline automatically downloads `granit_bank_cimkezes.json` from Google Drive if not present
 - No manual download needed - just run the Docker container!
 
+**Manual Download (In case of emergency)**
+- Download and put the `granit_bank_cimkezes.json` file from https://drive.google.com/file/d/19UlAsuzprmhTl_I5Z_58d7AAIw3eJX_l/view?usp=sharing to the /data folder
+- Or Download it from the sharepoint folder, from folder QG1L1V
 
 ## Docker Instructions
 
@@ -70,7 +73,7 @@ Build the Docker image from the repository root:
 docker build -t legal-text-decoder .
 ```
 
-### Ruthe project's `data/` directory to persist downloaded files, processed data, and trained models:
+### Run
 
 **Windows (PowerShell):**
 ```powershell
@@ -86,10 +89,8 @@ docker run --rm -v "$(pwd)/data:/app/data" legal-text-decoder > log/run.log 2>&1
 - `granit_bank_cimkezes.json` - Annotation file (auto-downloaded if missing)
 - `processed_data.csv` - Training data with extracted features
 - `inference_holdout.csv` - Holdout examples for inference
-- `models/` - Trained CORAL models (`coral_fold1_best.bin` ... `coral_fold5_best.bin`)
-
-**Note**: All directories are automatically created. The complete execution log is saved to `log/run.log`.
-**Note**: The `log/`, `models/`, and `data/` directories are automatically created if they don't exist - no manual setup required!
+- `baseline_results.json` - Baseline model performance metrics (MAE, QWK)
+-  Confusion matrices for each fold
 
 The complete execution log will be saved to `log/run.log`.
 
@@ -106,14 +107,16 @@ The `run.sh` script executes the following stages sequentially:
    - Saves processed training data to `data/processed_data.csv`
 
 2. **02-training.py**:
-   - Trains CORAL model with 5-fold cross-validation **on training data only**
+   - Trains baseline (LogisticAT) model on 80/20 split
+   - Trains CORAL model with 5-fold cross-validation
    - Logs model architecture, training metrics (loss, MAE, QWK)
-   - Saves best model per fold
-   - Generates confusion matrices
+   - Saves best model per fold to `data/models/`
 
 3. **03-evaluation.py**:
-   - Evaluates baseline and transformer models on test fold
-   - Reports final MAE and QWK scores
+   - **Baseline evaluation**: Loads baseline results from 02-training.py
+   - **Deep learning evaluation**: Tests all 5 CORAL models on validation
+   - **Final comparison**: Reports baseline vs deep learning improvements (MAE, QWK)
+   - Generates confusion matrices for each fold
 
 4. **04-inference.py**:
    - **Runs predictions on 2 holdout examples (truly unseen data)**
@@ -121,14 +124,3 @@ The `run.sh` script executes the following stages sequentially:
    - Compares predictions with ground truth labels
    - Reports MAE and accuracy on holdout set
 
-## Logging Requirements
-
-All required logging components are implemented and output to `log/run.log`:
-
-1. **Configuration**: Model name, hyperparameters (batch size, learning rate, epochs, etc.)
-2. **Data Analysis**: Record counts, label distribution, text length statistics, class balance, outlier detection
-3. **Model Architecture**: Parameter counts (backbone + head), layer details
-4. **Training Metrics**: Per-epoch train/validation loss, MAE, QWK
-5. **Validation Results**: Best MAE per fold, confusion matrices
-6. **Final Evaluation**: Test set performance for baseline and transformer models
-7. **Inference Example**: Model loading and prediction demonstration
